@@ -1,13 +1,16 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Eye, EyeOff, LoaderCircle, Lock, Mail } from "lucide-react";
 import { toast } from "sonner";
+import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
+import { authClient } from "@/lib/auth-client";
+import { getAuthErrorMessage } from "@/lib/auth-error";
+import { useRouter } from "next/navigation";
 import { AuthDivider } from "./auth-divider";
 import { Field } from "./field";
-import { GoogleButton } from "./google-button";
+import { SocialButtons } from "./social-buttons";
 
 type SigninValues = {
   email: string;
@@ -20,6 +23,7 @@ type SigninErrors = Partial<Record<keyof SigninValues, string>>;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function SignInForm() {
+  const router = useRouter();
   const [values, setValues] = useState<SigninValues>({
     email: "",
     password: "",
@@ -36,6 +40,8 @@ export function SignInForm() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (isSubmitting) return;
 
     const nextErrors: SigninErrors = {};
 
@@ -58,34 +64,30 @@ export function SignInForm() {
     }
 
     setIsSubmitting(true);
+
     try {
-      // TODO(better-auth): replace the demo delay with the real sign-in call.
-      // const { error } = await authClient.signIn.email({
-      //   email: values.email,
-      //   password: values.password,
-      //   rememberMe: values.remember,
-      // });
-      await new Promise((resolve) => setTimeout(resolve, 900));
-      toast.success("Welcome back!", {
-        description: "The UI is ready — connect better-auth to start a real session.",
+      const { error } = await authClient.signIn.email({
+        email: values.email.trim().toLowerCase(),
+        password: values.password,
+        rememberMe: values.remember,
       });
+
+      if (error) {
+        toast.error(getAuthErrorMessage(error));
+        return;
+      }
+
+      toast.success("Welcome back!", {
+        description: "You are signed in. Time to find the right gear.",
+      });
+
+      router.replace("/");
+      router.refresh();
+    } catch {
+      toast.error("We could not sign you in right now. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
-  }
-
-  function handleGoogleSignIn() {
-    // Google sign-ups always get the "customer" role by default.
-    // TODO(better-auth): await authClient.signIn.social({ provider: "google", callbackURL: "/" });
-    toast.info("Google sign-in is ready to connect.", {
-      description: "Wire this button to the better-auth Google provider.",
-    });
-  }
-
-  function handleForgotPassword() {
-    toast.info("Password reset is not available yet.", {
-      description: "Email-based recovery is intentionally left out of this build.",
-    });
   }
 
   return (
@@ -118,6 +120,7 @@ export function SignInForm() {
           value={values.email}
           onChange={(event) => updateField("email", event.target.value)}
           error={errors.email}
+          disabled={isSubmitting}
         />
 
         <Field
@@ -131,6 +134,7 @@ export function SignInForm() {
           value={values.password}
           onChange={(event) => updateField("password", event.target.value)}
           error={errors.password}
+          disabled={isSubmitting}
           trailing={
             <button
               type="button"
@@ -150,18 +154,13 @@ export function SignInForm() {
               name="remember"
               checked={values.remember}
               onChange={(event) => updateField("remember", event.target.checked)}
+              disabled={isSubmitting}
               className="size-4 cursor-pointer rounded border-ink/20 accent-ink"
             />
             Remember me
           </label>
 
-          <button
-            type="button"
-            onClick={handleForgotPassword}
-            className="text-[12.5px] font-semibold text-ink/65 underline-offset-4 transition-colors hover:text-ink hover:underline"
-          >
-            Forgot password?
-          </button>
+          <span className="text-[11px] font-medium text-ink/35">Secure, password-based access</span>
         </div>
 
         <Button
@@ -185,8 +184,7 @@ export function SignInForm() {
 
       <div className="mt-6 space-y-5">
         <AuthDivider />
-
-        <GoogleButton label="Continue with Google" onClick={handleGoogleSignIn} />
+        <SocialButtons mode="signin" />
 
         <p className="text-center text-[13px] text-ink/50">
           New to GearGrid?{" "}
