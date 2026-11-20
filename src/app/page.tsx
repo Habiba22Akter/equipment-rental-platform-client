@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -16,6 +17,10 @@ import {
   Wallet,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site/site-header";
+import { auth } from "@/lib/auth";
+import { getFeaturedEquipment } from "@/lib/equipment";
+
+export const instant = false;
 
 const categories = [
   { icon: Drill, name: "Power tools", count: "480+ listings" },
@@ -48,7 +53,13 @@ const ownerBenefits = [
   { icon: Truck, label: "Choose pickup or local delivery for each listing" },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const [session, featuredEquipment] = await Promise.all([
+    auth.api.getSession({ headers: await headers() }),
+    getFeaturedEquipment(),
+  ]);
+  const isLoggedIn = Boolean(session?.user);
+
   return (
     <div className="min-h-dvh bg-cream text-ink">
       <SiteHeader />
@@ -114,83 +125,98 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="relative mx-auto w-full max-w-[460px] lg:mx-0 lg:ml-auto">
-              <div className="absolute inset-x-6 top-8 bottom-8 -rotate-2 rounded-[2rem] border border-ink/[0.06] bg-white/45" />
-
-              <div className="relative rounded-[1.75rem] border border-ink/[0.08] bg-white p-5 shadow-[0_32px_70px_-40px_rgba(11,31,26,0.4)] sm:p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <span className="grid size-11 place-items-center rounded-xl bg-ink text-lime">
-                      <Drill className="size-5" />
-                    </span>
-                    <div>
-                      <p className="text-[13.5px] font-bold tracking-[-0.01em]">Makita Rotary Hammer</p>
-                      <p className="mt-0.5 text-[11px] text-ink/40">Power tools · Dhaka</p>
-                    </div>
-                  </div>
-                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-bold tracking-[0.12em] text-emerald-700 uppercase">
-                    Available
-                  </span>
-                </div>
-
-                <div className="mt-5 grid grid-cols-2 gap-2.5">
-                  <div className="rounded-xl bg-cream p-3">
-                    <p className="text-[9.5px] font-bold tracking-[0.12em] text-ink/35 uppercase">
-                      Daily rate
-                    </p>
-                    <p className="mt-1 text-[20px] font-bold tracking-[-0.04em]">
-                      $24<span className="text-[10.5px] font-normal text-ink/35">/day</span>
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-cream p-3">
-                    <p className="text-[9.5px] font-bold tracking-[0.12em] text-ink/35 uppercase">
-                      Deposit
-                    </p>
-                    <p className="mt-1 text-[20px] font-bold tracking-[-0.04em]">
-                      $40<span className="text-[10.5px] font-normal text-ink/35"> refundable</span>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between rounded-xl border border-ink/[0.07] px-3.5 py-3">
-                  <div className="flex items-center gap-2 text-[11px] font-medium text-ink/55">
-                    <CalendarCheck className="size-4 text-ink/35" />
-                    Nov 24 — Nov 27
-                  </div>
-                  <span className="text-[10.5px] font-semibold text-ink/40">3 days</span>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="flex -space-x-2">
-                    {["AR", "MK", "SN"].map((initials, index) => (
-                      <span
-                        key={initials}
-                        className="grid size-7 place-items-center rounded-full border-2 border-white text-[8.5px] font-extrabold text-ink"
-                        style={{
-                          backgroundColor: ["#f3c48b", "#a7d7c5", "#c9f45b"][index],
-                        }}
-                      >
-                        {initials}
-                      </span>
-                    ))}
-                  </div>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink/50">
-                    <Star className="size-3.5 fill-amber-400 text-amber-400" />
-                    4.9 (86 reviews)
-                  </span>
-                </div>
-              </div>
-
-              <div className="absolute -bottom-6 -left-3 hidden items-center gap-2.5 rounded-2xl border border-ink/[0.08] bg-white p-3 pr-4 shadow-[0_20px_40px_-24px_rgba(11,31,26,0.45)] sm:flex">
-                <span className="grid size-9 place-items-center rounded-xl bg-lime text-ink">
-                  <ShieldCheck className="size-4" />
-                </span>
-                <div>
-                  <p className="text-[11.5px] font-bold">Payment protected</p>
-                  <p className="text-[10px] text-ink/40">Released after pickup</p>
+            <div className="relative mx-auto w-full max-w-[500px] lg:mx-0 lg:ml-auto">
+              <div className="absolute inset-5 -rotate-3 rounded-[2rem] bg-lime/35" />
+              <div className="relative overflow-hidden rounded-[2rem] border border-white/60 bg-white p-2 shadow-[0_32px_70px_-40px_rgba(11,31,26,0.5)]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="https://images.unsplash.com/photo-1586864387967-d02ef85d93e8?auto=format&fit=crop&w=1200&q=90"
+                  alt="Professional equipment ready to rent"
+                  className="h-[390px] w-full rounded-[1.5rem] object-cover sm:h-[470px]"
+                />
+                <div className="absolute right-6 bottom-6 left-6 rounded-2xl border border-white/30 bg-ink/85 p-4 text-white backdrop-blur-md">
+                  <p className="text-[10px] font-bold tracking-[0.16em] text-lime uppercase">
+                    Ready when you are
+                  </p>
+                  <p className="mt-1 text-[15px] font-semibold">Quality gear. Clear rates. Less hassle.</p>
                 </div>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section id="featured-equipment" className="border-y border-ink/[0.06] bg-white/55">
+          <div className="mx-auto w-full max-w-[1180px] px-5 py-16 sm:px-7 lg:px-10">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="text-[10.5px] font-bold tracking-[0.18em] text-ink/35 uppercase">
+                  Featured equipment
+                </p>
+                <h2 className="mt-2 text-[1.7rem] font-semibold tracking-[-0.04em]">
+                  Trusted gear for every project
+                </h2>
+                <p className="mt-2 max-w-[520px] text-[13px] leading-6 text-ink/50">
+                  Browse approved equipment from reliable owners and find what you need for the job.
+                </p>
+              </div>
+            </div>
+
+            {featuredEquipment.length > 0 ? (
+              <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {featuredEquipment.map((equipment) => (
+                  <article
+                    key={equipment.id}
+                    className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-white shadow-[0_18px_36px_-30px_rgba(11,31,26,0.45)]"
+                  >
+                    <div className="relative h-52 bg-cream">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={equipment.imageUrl}
+                        alt={equipment.name}
+                        className="size-full object-cover"
+                      />
+                      <span className="absolute top-3 left-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-ink/65 backdrop-blur">
+                        Approved
+                      </span>
+                    </div>
+                    <div className="p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] font-bold tracking-[0.12em] text-ink/35 uppercase">
+                            {equipment.category}
+                          </p>
+                          <h3 className="mt-1 text-[15px] font-bold tracking-[-0.02em]">
+                            {equipment.name}
+                          </h3>
+                        </div>
+                        <p className="shrink-0 text-[14px] font-bold">
+                          ${equipment.dailyRate}
+                          <span className="text-[10px] font-normal text-ink/40">/day</span>
+                        </p>
+                      </div>
+                      <p className="mt-3 line-clamp-2 text-[12px] leading-5 text-ink/50">
+                        {equipment.description}
+                      </p>
+                      <div className="mt-4 flex items-center justify-between gap-3">
+                        <span className="text-[11px] font-medium text-ink/40">{equipment.location}</span>
+                        <Link
+                          href={isLoggedIn ? `/equipment/${equipment.id}` : "/signin"}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-ink px-3.5 py-2 text-[11px] font-semibold text-cream transition hover:bg-ink-soft"
+                        >
+                          View Details
+                          <ArrowUpRight className="size-3.5" />
+                        </Link>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-8 rounded-2xl border border-dashed border-ink/15 bg-white p-10 text-center">
+                <p className="text-sm font-semibold text-ink/70">No approved equipment yet.</p>
+                <p className="mt-1 text-xs text-ink/45">Check back soon for new listings.</p>
+              </div>
+            )}
           </div>
         </section>
 
