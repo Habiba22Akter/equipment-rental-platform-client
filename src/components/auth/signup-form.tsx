@@ -1,7 +1,8 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, useState } from "react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   Check,
@@ -18,13 +19,13 @@ import {
 import { cn } from "cn";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { authClient } from "@/lib/auth-client";
+import { getAuthErrorMessage } from "@/lib/auth-error";
 import { AuthDivider } from "./auth-divider";
 import { Field } from "./field";
-import { GoogleButton } from "./google-button";
-import { signUp } from "@/lib/auth-client";
-import { console } from "inspector/promises";
+import { SocialButtons } from "./social-buttons";
 
-type AccountRole = "customer" | "owner";
+type AccountRole = "Customer" | "Owner";
 
 type SignupValues = {
   name: string;
@@ -38,10 +39,11 @@ type SignupValues = {
 type SignupErrors = Partial<Record<keyof SignupValues, string>>;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
 
 const roles = [
-  { value: "customer", label: "Rent equipment", icon: ShoppingBag },
-  { value: "owner", label: "List equipment", icon: Package },
+  { value: "Customer", label: "Rent equipment", icon: ShoppingBag },
+  { value: "Owner", label: "List equipment", icon: Package },
 ] as const satisfies ReadonlyArray<{
   value: AccountRole;
   label: string;
@@ -57,17 +59,19 @@ function getPasswordChecks(password: string) {
 }
 
 export function SignUpForm() {
+  const router = useRouter();
   const [values, setValues] = useState<SignupValues>({
     name: "",
     email: "",
     photo: "",
     password: "",
-    role: "customer",
+    role: "Customer",
     terms: false,
   });
   const [errors, setErrors] = useState<SignupErrors>({});
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   const passwordChecks = getPasswordChecks(values.password);
   const isPasswordValid = passwordChecks.every((check) => check.met);
@@ -77,32 +81,56 @@ export function SignUpForm() {
     setErrors((current) => ({ ...current, [key]: undefined }));
   }
 
-  function handlePhotoUpload(event: ChangeEvent<HTMLInputElement>) {
+  async function handlePhotoUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
 
     if (!file) return;
+
     if (!file.type.startsWith("image/")) {
       toast.error("That file is not an image.");
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
+
+    if (file.size > MAX_PHOTO_BYTES) {
       toast.error("Keep the image under 2 MB.");
       return;
     }
 
-    // UI-only preview. Swap this for an imgbb upload when the API is connected.
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        updateField("photo", reader.result);
+    setIsUploadingPhoto(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const payload = (await response.json()) as { url?: string; error?: string };
+
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.error || "We could not upload that image.");
       }
-    };
-    reader.readAsDataURL(file);
+
+      updateField("photo", payload.url);
+      toast.success("Profile photo uploaded.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Image upload failed. Paste an image URL instead.",
+      );
+    } finally {
+      setIsUploadingPhoto(false);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (isSubmitting || isUploadingPhoto) return;
 
     const nextErrors: SignupErrors = {};
 
@@ -120,7 +148,7 @@ export function SignUpForm() {
     }
 
     const photo = values.photo.trim();
-    if (photo && !photo.startsWith("data:image/")) {
+    if (photo) {
       try {
         const parsed = new URL(photo);
         if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
@@ -144,44 +172,35 @@ export function SignUpForm() {
     }
 
     setIsSubmitting(true);
+
     try {
-      // TODO(better-auth): replace the demo delay with the real sign-up call.
-      // await authClient.signUp.email({
-      //   name: values.name,
-      //   email: values.email,
-      //   password: values.password,
-      //   image: values.photo,
-      //   role: values.role,
-      //   callbackURL: "/",
-      // });
-
-// ata ami nije documentation theke nisi
-const { data, error } = await signUp.email({
-    name: "John Doe", // required, The name of the user.
-    email: "john.doe@example.com", // required, The email address of the user.
-    password: "password1234", // required, The password of the user. It should be at least 8 characters long and max 128 by default.
-    image: "https://example.com/image.png", // An optional profile image of the user.
-    callbackURL: "https://example.com/callback", // An optional URL to redirect to after the user signs up.
-});
-
-// ///
-console.log("Sign-up response:", { data, error });
-
-      await new Promise((resolve) => setTimeout(resolve, 900));
-      toast.success("Account details look good!", {
-        description: "Connect better-auth to finish creating this account.",
+      const { error } = await authClient.signUp.email({
+        name: values.name.trim(),
+        email: values.email.trim().toLowerCase(),
+        password: values.password,
+        image: photo || undefined,
+        role: values.role,
       });
+
+      if (error) {
+        toast.error(getAuthErrorMessage(error));
+        return;
+      }
+
+      toast.success("Account created!", {
+        description:
+          values.role === "Owner"
+            ? "Your owner account is ready. Add your first listing next."
+            : "Welcome to GearGrid. Start exploring equipment near you.",
+      });
+
+      router.replace("/");
+      router.refresh();
+    } catch {
+      toast.error("We could not create your account right now. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
-  }
-
-  function handleGoogleSignUp() {
-    // Google accounts default to the "customer" role.
-    // TODO(better-auth): await authClient.signIn.social({ provider: "google", callbackURL: "/" });
-    toast.info("Google sign-up is ready to connect.", {
-      description: "Wire this button to the better-auth Google provider.",
-    });
   }
 
   return (
@@ -215,8 +234,9 @@ console.log("Sign-up response:", { data, error });
                   type="button"
                   aria-pressed={isActive}
                   onClick={() => updateField("role", value)}
+                  disabled={isSubmitting}
                   className={cn(
-                    "flex items-center gap-2 rounded-xl border px-3 py-3 text-left text-[12.5px] font-semibold transition duration-150 focus-visible:ring-4 focus-visible:ring-lime/40 focus-visible:outline-none",
+                    "flex items-center gap-2 rounded-xl border px-3 py-3 text-left text-[12.5px] font-semibold transition duration-150 focus-visible:ring-4 focus-visible:ring-lime/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70",
                     isActive
                       ? "border-ink bg-ink text-cream shadow-[0_8px_20px_-12px_rgba(11,31,26,0.6)]"
                       : "border-ink/10 bg-white text-ink/60 hover:border-ink/20 hover:text-ink",
@@ -243,6 +263,7 @@ console.log("Sign-up response:", { data, error });
           value={values.name}
           onChange={(event) => updateField("name", event.target.value)}
           error={errors.name}
+          disabled={isSubmitting}
         />
 
         <Field
@@ -256,6 +277,7 @@ console.log("Sign-up response:", { data, error });
           value={values.email}
           onChange={(event) => updateField("email", event.target.value)}
           error={errors.email}
+          disabled={isSubmitting}
         />
 
         <div className="space-y-1.5">
@@ -288,22 +310,29 @@ console.log("Sign-up response:", { data, error });
                 autoComplete="off"
                 value={values.photo}
                 onChange={(event) => updateField("photo", event.target.value)}
+                disabled={isSubmitting || isUploadingPhoto}
                 aria-invalid={errors.photo ? true : undefined}
                 aria-describedby={errors.photo ? "signup-photo-error" : undefined}
                 className={cn(
-                  "h-12 w-full rounded-xl border bg-white pr-[5.4rem] pl-11 text-[13px] text-ink shadow-[0_1px_2px_rgba(11,31,26,0.03)] transition-[border-color,box-shadow] duration-150 outline-none placeholder:text-ink/30",
+                  "h-12 w-full rounded-xl border bg-white pr-[5.4rem] pl-11 text-[13px] text-ink shadow-[0_1px_2px_rgba(11,31,26,0.03)] transition-[border-color,box-shadow] duration-150 outline-none placeholder:text-ink/30 disabled:opacity-60",
                   "focus:border-ink/25 focus:ring-4 focus:ring-lime/40",
                   errors.photo
                     ? "border-red-300 focus:border-red-400 focus:ring-red-100"
                     : "border-ink/10 hover:border-ink/20",
                 )}
               />
-              <label className="absolute top-1/2 right-1.5 -translate-y-1/2 cursor-pointer rounded-lg bg-ink/[0.05] px-2.5 py-1.5 text-[10.5px] font-bold tracking-wide text-ink/65 uppercase transition hover:bg-ink/10">
-                Upload
+              <label
+                className={cn(
+                  "absolute top-1/2 right-1.5 -translate-y-1/2 cursor-pointer rounded-lg bg-ink/[0.05] px-2.5 py-1.5 text-[10.5px] font-bold tracking-wide text-ink/65 uppercase transition hover:bg-ink/10",
+                  (isSubmitting || isUploadingPhoto) && "pointer-events-none opacity-60",
+                )}
+              >
+                {isUploadingPhoto ? "Uploading" : "Upload"}
                 <input
                   type="file"
                   accept="image/*"
                   onChange={handlePhotoUpload}
+                  disabled={isSubmitting || isUploadingPhoto}
                   className="sr-only"
                 />
               </label>
@@ -311,7 +340,11 @@ console.log("Sign-up response:", { data, error });
           </div>
 
           {errors.photo ? (
-            <p id="signup-photo-error" role="alert" className="text-[11.5px] font-medium text-red-600">
+            <p
+              id="signup-photo-error"
+              role="alert"
+              className="text-[11.5px] font-medium text-red-600"
+            >
               {errors.photo}
             </p>
           ) : null}
@@ -329,6 +362,7 @@ console.log("Sign-up response:", { data, error });
           onChange={(event) => updateField("password", event.target.value)}
           error={errors.password}
           description={<PasswordChecklist password={values.password} />}
+          disabled={isSubmitting}
           trailing={
             <button
               type="button"
@@ -349,6 +383,7 @@ console.log("Sign-up response:", { data, error });
               name="terms"
               checked={values.terms}
               onChange={(event) => updateField("terms", event.target.checked)}
+              disabled={isSubmitting}
               aria-invalid={errors.terms ? true : undefined}
               aria-describedby={errors.terms ? "signup-terms-error" : undefined}
               className="mt-0.5 size-4 shrink-0 cursor-pointer rounded border-ink/20 accent-ink"
@@ -361,7 +396,7 @@ console.log("Sign-up response:", { data, error });
           </label>
 
           {errors.terms ? (
-            <p role="alert" className="text-[11.5px] font-medium text-red-600">
+            <p id="signup-terms-error" role="alert" className="text-[11.5px] font-medium text-red-600">
               {errors.terms}
             </p>
           ) : null}
@@ -370,7 +405,7 @@ console.log("Sign-up response:", { data, error });
         <div className="pt-1">
           <Button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isUploadingPhoto}
             className="group h-12 w-full rounded-xl bg-ink text-[14px] font-semibold text-cream shadow-[0_12px_28px_-14px_rgba(11,31,26,0.65)] transition hover:bg-ink-soft focus-visible:border-ink focus-visible:ring-lime/50 disabled:opacity-70"
           >
             {isSubmitting ? (
@@ -390,8 +425,7 @@ console.log("Sign-up response:", { data, error });
 
       <div className="mt-6 space-y-5">
         <AuthDivider>or sign up with</AuthDivider>
-
-        <GoogleButton label="Sign up with Google" onClick={handleGoogleSignUp} />
+        <SocialButtons mode="signup" />
 
         <p className="text-center text-[13px] text-ink/50">
           Already have an account?{" "}
