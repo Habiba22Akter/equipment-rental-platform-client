@@ -8,18 +8,23 @@ import {
   Bell,
   CalendarDays,
   ChevronRight,
+  ClipboardCheck,
+  DollarSign,
   Heart,
   LayoutDashboard,
   LogOut,
   Menu,
   MessageSquareText,
   Package,
+  PackagePlus,
   Settings,
   Star,
+  Users,
   X,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { authClient } from "@/lib/auth-client";
+import { normalizeRole } from "@/lib/roles";
 
 type DashboardUser = {
   name: string;
@@ -32,15 +37,54 @@ type DashboardShellProps = {
   user: DashboardUser;
 };
 
-type DashboardTab = "overview" | "bookings" | "favorites" | "reviews" | "profile";
+type DashboardTab =
+  | "overview"
+  | "bookings"
+  | "favorites"
+  | "reviews"
+  | "profile"
+  | "listings"
+  | "approvals"
+  | "users"
+  | "payments";
 
-const navigation: { id: DashboardTab; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: "overview", label: "Dashboard", icon: LayoutDashboard },
-  { id: "bookings", label: "My Bookings", icon: CalendarDays },
-  { id: "favorites", label: "My Favorites", icon: Heart },
-  { id: "reviews", label: "My Reviews", icon: MessageSquareText },
-  { id: "profile", label: "Profile Settings", icon: Settings },
-];
+type DashboardNavigation = {
+  id: DashboardTab;
+  label: string;
+  icon: typeof LayoutDashboard;
+};
+
+function getNavigation(role: string): DashboardNavigation[] {
+  if (role === "Owner") {
+    return [
+      { id: "overview", label: "Owner Dashboard", icon: LayoutDashboard },
+      { id: "listings", label: "My Listings", icon: Package },
+      { id: "bookings", label: "Rental Requests", icon: CalendarDays },
+      { id: "payments", label: "Payments", icon: DollarSign },
+      { id: "reviews", label: "Reviews", icon: Star },
+      { id: "profile", label: "Profile Settings", icon: Settings },
+    ];
+  }
+
+  if (role === "Admin") {
+    return [
+      { id: "overview", label: "Admin Dashboard", icon: LayoutDashboard },
+      { id: "users", label: "Manage Users", icon: Users },
+      { id: "approvals", label: "Equipment Approvals", icon: ClipboardCheck },
+      { id: "bookings", label: "All Bookings", icon: CalendarDays },
+      { id: "payments", label: "Payments", icon: DollarSign },
+      { id: "profile", label: "Profile Settings", icon: Settings },
+    ];
+  }
+
+  return [
+    { id: "overview", label: "Dashboard", icon: LayoutDashboard },
+    { id: "bookings", label: "My Bookings", icon: CalendarDays },
+    { id: "favorites", label: "My Favorites", icon: Heart },
+    { id: "reviews", label: "My Reviews", icon: MessageSquareText },
+    { id: "profile", label: "Profile Settings", icon: Settings },
+  ];
+}
 
 const recentBookings = [
   {
@@ -69,6 +113,8 @@ export function DashboardShell({ user }: DashboardShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const initials = getInitials(user.name);
+  const role = normalizeRole(user.role);
+  const navigation = getNavigation(role);
 
   function selectTab(tab: DashboardTab) {
     setActiveTab(tab);
@@ -209,11 +255,15 @@ export function DashboardShell({ user }: DashboardShellProps) {
             transition={{ duration: 0.25 }}
             className="mx-auto max-w-[1120px] px-5 py-8 sm:px-8 lg:px-10 lg:py-12"
           >
-            {activeTab === "overview" ? <Overview userName={user.name} /> : null}
+            {activeTab === "overview" ? <Overview userName={user.name} role={role} /> : null}
             {activeTab === "bookings" ? <Bookings /> : null}
             {activeTab === "favorites" ? <EmptyState icon={Heart} title="Your favorite equipment" description="Save equipment you want to compare or rent later." /> : null}
             {activeTab === "reviews" ? <EmptyState icon={Star} title="Your reviews" description="Reviews you leave after completed rentals will appear here." /> : null}
             {activeTab === "profile" ? <Profile user={user} /> : null}
+            {activeTab === "listings" ? <EmptyState icon={PackagePlus} title="My equipment listings" description="Create and manage the equipment you rent out to customers." /> : null}
+            {activeTab === "approvals" ? <EmptyState icon={ClipboardCheck} title="Equipment approvals" description="Review newly submitted equipment listings and approve or reject them." /> : null}
+            {activeTab === "users" ? <EmptyState icon={Users} title="Manage users" description="Review customers and owners from the GearGrid user directory." /> : null}
+            {activeTab === "payments" ? <EmptyState icon={DollarSign} title="Payments" description="Track completed, pending and refunded rental payments." /> : null}
           </motion.div>
         </main>
       </div>
@@ -221,12 +271,33 @@ export function DashboardShell({ user }: DashboardShellProps) {
   );
 }
 
-function Overview({ userName }: { userName: string }) {
+function Overview({ userName, role }: { userName: string; role: string }) {
+  const stats =
+    role === "Admin"
+      ? [
+          { label: "Total users", value: "248", note: "Customers and owners" },
+          { label: "Pending approvals", value: "12", note: "Equipment listings" },
+          { label: "Active bookings", value: "34", note: "Across the marketplace" },
+        ]
+      : role === "Owner"
+        ? [
+            { label: "Active listings", value: "6", note: "Approved equipment" },
+            { label: "Rental requests", value: "4", note: "Awaiting a response" },
+            { label: "Monthly earnings", value: "$840", note: "Completed payments" },
+          ]
+        : [
+            { label: "Active rentals", value: "2", note: "Currently booked" },
+            { label: "Completed rentals", value: "8", note: "Since joining GearGrid" },
+            { label: "Saved equipment", value: "5", note: "Ready to compare" },
+          ];
+
   return (
     <>
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Overview</p>
+          <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">
+            {role} overview
+          </p>
           <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em] sm:text-[2.5rem]">
             Welcome back, {userName.split(" ")[0]}.
           </h1>
@@ -243,9 +314,9 @@ function Overview({ userName }: { userName: string }) {
       </div>
 
       <div className="mt-8 grid gap-3 sm:grid-cols-3">
-        <StatCard label="Active rentals" value="2" note="Currently booked" />
-        <StatCard label="Completed rentals" value="8" note="Since joining GearGrid" />
-        <StatCard label="Saved equipment" value="5" note="Ready to compare" />
+        {stats.map((stat) => (
+          <StatCard key={stat.label} {...stat} />
+        ))}
       </div>
 
       <div className="mt-8 rounded-2xl border border-ink/[0.08] bg-white p-5 sm:p-6">

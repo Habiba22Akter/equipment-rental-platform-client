@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { authClient, useSession } from "@/lib/auth-client";
 import { BrandMark } from "@/components/auth/brand-mark";
 import { cn } from "cn";
+import { normalizeRole } from "@/lib/roles";
 
 const navigation = [
   { href: "/", label: "Home" },
@@ -54,6 +55,12 @@ export function SiteHeader() {
 
   const user = session?.user;
   const initials = getInitials(user?.name);
+  const dashboardPath =
+    user && normalizeRole(user.role) === "Admin"
+      ? "/admin/dashboard"
+      : user && normalizeRole(user.role) === "Owner"
+        ? "/owner/dashboard"
+        : "/customer/dashboard";
 
   return (
     <header className="sticky top-0 z-50 border-b border-ink/[0.06] bg-cream/85 backdrop-blur-xl">
@@ -102,7 +109,7 @@ export function SiteHeader() {
               </div>
 
               <Link
-                href="/dashboard"
+                href={dashboardPath}
                 className="hidden h-9 items-center gap-1.5 rounded-full border border-ink/10 px-3.5 text-[12px] font-semibold text-ink/60 transition hover:border-ink/20 hover:text-ink sm:inline-flex"
               >
                 <LayoutDashboard className="size-4" />
@@ -177,7 +184,7 @@ export function SiteHeader() {
             </Link>
           ) : (
             <Link
-              href="/dashboard"
+              href={dashboardPath}
               onClick={() => setIsMenuOpen(false)}
               className="rounded-xl px-3 py-2.5 text-[13.5px] font-medium text-ink/65 transition hover:bg-ink/[0.04] hover:text-ink"
             >

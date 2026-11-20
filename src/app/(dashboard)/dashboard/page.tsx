@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { auth } from "@/lib/auth";
 
 export const instant = false;
@@ -12,14 +11,12 @@ export default async function DashboardPage() {
     redirect("/signin");
   }
 
-  return (
-    <DashboardShell
-      user={{
-        name: session.user.name,
-        email: session.user.email,
-        image: session.user.image,
-        role: session.user.role,
-      }}
-    />
-  );
+  const role =
+    typeof session.user.role === "string"
+      ? session.user.role.toLowerCase()
+      : "customer";
+
+  if (role === "admin") redirect("/admin/dashboard");
+  if (role === "owner") redirect("/owner/dashboard");
+  redirect("/customer/dashboard");
 }
