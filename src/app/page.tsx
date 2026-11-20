@@ -6,27 +6,82 @@ import {
   CalendarCheck,
   Camera,
   CheckCircle2,
-  Drill,
+  CarFront,
+  HardHat,
+  Monitor,
   PartyPopper,
   Search,
   ShieldCheck,
   Sparkles,
   Star,
-  Tractor,
   Truck,
   Wallet,
+  Wheat,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site/site-header";
+import { MotionDiv, MotionSection } from "@/components/site/motion";
 import { auth } from "@/lib/auth";
 import { getFeaturedEquipment } from "@/lib/equipment";
 
 export const instant = false;
 
 const categories = [
-  { icon: Drill, name: "Power tools", count: "480+ listings" },
-  { icon: Tractor, name: "Heavy machinery", count: "210+ listings" },
-  { icon: Camera, name: "Cameras & drones", count: "360+ listings" },
-  { icon: PartyPopper, name: "Event & audio", count: "190+ listings" },
+  { icon: HardHat, name: "Construction Equipment", count: "480+ listings" },
+  { icon: Camera, name: "Photography Equipment", count: "360+ listings" },
+  { icon: CarFront, name: "Vehicles & Transportation", count: "210+ listings" },
+  { icon: Wheat, name: "Agriculture Equipment", count: "175+ listings" },
+  { icon: Monitor, name: "Electronics", count: "295+ listings" },
+  { icon: PartyPopper, name: "Event Equipment", count: "190+ listings" },
+];
+
+const benefits = [
+  {
+    icon: Wallet,
+    title: "Affordable rental prices",
+    description: "Compare transparent rates from local owners and pay only for the time you need.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Verified equipment owners",
+    description: "Every approved listing comes from an owner reviewed by our marketplace team.",
+  },
+  {
+    icon: CalendarCheck,
+    title: "Flexible rental periods",
+    description: "Choose daily, weekly or monthly rentals that fit your schedule and budget.",
+  },
+  {
+    icon: CheckCircle2,
+    title: "Secure payments",
+    description: "Your booking and payment details stay protected from checkout to pickup.",
+  },
+];
+
+const reviews = [
+  {
+    name: "Nadia Rahman",
+    role: "Event producer",
+    rating: 5,
+    comment: "Found a complete sound setup for our event in minutes. The owner was helpful and the equipment was exactly as described.",
+  },
+  {
+    name: "Arif Hossain",
+    role: "Independent contractor",
+    rating: 5,
+    comment: "The clear daily rates made it easy to compare options. I saved money and got the right tools for a weekend project.",
+  },
+  {
+    name: "Maya Chen",
+    role: "Content creator",
+    rating: 4,
+    comment: "The camera listing had great photos and accurate details. Pickup was smooth, simple and right on schedule.",
+  },
+  {
+    name: "Karim Ahmed",
+    role: "Small farm owner",
+    rating: 5,
+    comment: "I rented a tiller for the season without committing to a purchase. GearGrid made the whole process feel trustworthy.",
+  },
 ];
 
 const steps = [
@@ -65,7 +120,7 @@ export default async function HomePage() {
       <SiteHeader />
 
       <main>
-        <section className="relative overflow-hidden">
+        <MotionSection className="relative overflow-hidden">
           <div aria-hidden="true" className="pointer-events-none absolute inset-0">
             <div className="absolute -top-40 -right-24 size-[34rem] rounded-full bg-lime/25 blur-[120px]" />
             <div className="absolute top-56 -left-40 size-[28rem] rounded-full bg-emerald-300/15 blur-[110px]" />
@@ -143,9 +198,9 @@ export default async function HomePage() {
               </div>
             </div>
           </div>
-        </section>
+        </MotionSection>
 
-        <section id="featured-equipment" className="border-y border-ink/[0.06] bg-white/55">
+        <MotionSection id="featured-equipment" className="border-y border-ink/[0.06] bg-white/55">
           <div className="mx-auto w-full max-w-[1180px] px-5 py-16 sm:px-7 lg:px-10">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
@@ -164,7 +219,7 @@ export default async function HomePage() {
             {featuredEquipment.length > 0 ? (
               <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {featuredEquipment.map((equipment) => (
-                  <article
+                  <MotionDiv
                     key={equipment.id}
                     className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-white shadow-[0_18px_36px_-30px_rgba(11,31,26,0.45)]"
                   >
@@ -208,7 +263,7 @@ export default async function HomePage() {
                         </Link>
                       </div>
                     </div>
-                  </article>
+                  </MotionDiv>
                 ))}
               </div>
             ) : (
@@ -218,9 +273,9 @@ export default async function HomePage() {
               </div>
             )}
           </div>
-        </section>
+        </MotionSection>
 
-        <section id="categories" className="border-y border-ink/[0.06] bg-white/55">
+        <MotionSection id="categories" className="border-y border-ink/[0.06] bg-white/55">
           <div className="mx-auto w-full max-w-[1180px] px-5 py-14 sm:px-7 lg:px-10">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
@@ -242,26 +297,50 @@ export default async function HomePage() {
 
             <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {categories.map(({ icon: Icon, name, count }) => (
-                <Link
+                <MotionDiv
                   key={name}
-                  href="/signup"
                   className="group rounded-2xl border border-ink/[0.08] bg-white p-5 transition duration-200 hover:-translate-y-0.5 hover:border-ink/20 hover:shadow-[0_18px_36px_-28px_rgba(11,31,26,0.5)]"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="grid size-10 place-items-center rounded-xl bg-cream text-ink/70 transition group-hover:bg-ink group-hover:text-lime">
-                      <Icon className="size-[18px]" />
-                    </span>
-                    <ArrowUpRight className="size-4 text-ink/20 transition group-hover:text-ink/50" />
-                  </div>
-                  <p className="mt-4 text-[13.5px] font-semibold">{name}</p>
-                  <p className="mt-1 text-[11px] text-ink/40">{count}</p>
-                </Link>
+                  <Link href="/signup" className="block">
+                    <div className="flex items-center justify-between">
+                      <span className="grid size-10 place-items-center rounded-xl bg-cream text-ink/70 transition group-hover:bg-ink group-hover:text-lime">
+                        <Icon className="size-[18px]" />
+                      </span>
+                      <ArrowUpRight className="size-4 text-ink/20 transition group-hover:text-ink/50" />
+                    </div>
+                    <p className="mt-4 text-[13.5px] font-semibold">{name}</p>
+                    <p className="mt-1 text-[11px] text-ink/40">{count}</p>
+                  </Link>
+                </MotionDiv>
               ))}
             </div>
           </div>
-        </section>
+        </MotionSection>
 
-        <section id="how-it-works" className="mx-auto w-full max-w-[1180px] px-5 py-20 sm:px-7 lg:px-10">
+        <MotionSection id="why-choose-us" className="mx-auto w-full max-w-[1180px] px-5 py-20 sm:px-7 lg:px-10">
+          <div className="max-w-[600px]">
+            <p className="text-[10.5px] font-bold tracking-[0.18em] text-ink/35 uppercase">
+              Why choose GearGrid
+            </p>
+            <h2 className="mt-2 text-[2rem] leading-tight font-semibold tracking-[-0.045em] sm:text-[2.35rem]">
+              Everything you need to rent with confidence.
+            </h2>
+          </div>
+
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {benefits.map(({ icon: Icon, title, description }) => (
+              <MotionDiv key={title} className="rounded-2xl border border-ink/[0.08] bg-white p-5">
+                <span className="grid size-10 place-items-center rounded-xl bg-ink text-lime">
+                  <Icon className="size-[18px]" />
+                </span>
+                <h3 className="mt-5 text-[14px] font-bold">{title}</h3>
+                <p className="mt-2 text-[12.5px] leading-6 text-ink/50">{description}</p>
+              </MotionDiv>
+            ))}
+          </div>
+        </MotionSection>
+
+        <MotionSection id="how-it-works" className="mx-auto w-full max-w-[1180px] px-5 py-20 sm:px-7 lg:px-10">
           <div className="max-w-[540px]">
             <p className="text-[10.5px] font-bold tracking-[0.18em] text-ink/35 uppercase">
               How it works
@@ -277,7 +356,7 @@ export default async function HomePage() {
 
           <div className="mt-10 grid gap-4 md:grid-cols-3">
             {steps.map(({ icon: Icon, title, description }, index) => (
-              <div
+              <MotionDiv
                 key={title}
                 className="relative rounded-2xl border border-ink/[0.08] bg-white p-6"
               >
@@ -289,12 +368,48 @@ export default async function HomePage() {
                 </span>
                 <h3 className="mt-5 text-[14px] font-bold tracking-[-0.01em]">{title}</h3>
                 <p className="mt-2 text-[12.5px] leading-6 text-ink/50">{description}</p>
-              </div>
+              </MotionDiv>
             ))}
           </div>
-        </section>
+        </MotionSection>
 
-        <section id="for-owners" className="px-5 pb-20 sm:px-7 lg:px-10">
+        <MotionSection id="customer-reviews" className="border-y border-ink/[0.06] bg-white/55">
+          <div className="mx-auto w-full max-w-[1180px] px-5 py-20 sm:px-7 lg:px-10">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-[10.5px] font-bold tracking-[0.18em] text-ink/35 uppercase">
+                Customer reviews
+              </p>
+              <h2 className="mt-2 text-[2rem] font-semibold tracking-[-0.045em]">
+                Good gear. Great experiences.
+              </h2>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-lime/40 px-3 py-2 text-[12px] font-bold text-ink">
+              <Star className="size-4 fill-amber-400 text-amber-400" />
+              4.9 average rating
+            </div>
+            </div>
+
+            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {reviews.map(({ name, role, rating, comment }) => (
+              <MotionDiv key={name} className="rounded-2xl border border-ink/[0.08] bg-white p-5">
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: rating }).map((_, index) => (
+                    <Star key={index} className="size-3.5 fill-amber-400 text-amber-400" />
+                  ))}
+                </div>
+                <p className="mt-4 text-[12.5px] leading-6 text-ink/60">“{comment}”</p>
+                <div className="mt-5 border-t border-ink/[0.07] pt-4">
+                  <p className="text-[12.5px] font-bold">{name}</p>
+                  <p className="mt-1 text-[10.5px] text-ink/40">{role}</p>
+                </div>
+              </MotionDiv>
+            ))}
+            </div>
+          </div>
+        </MotionSection>
+
+        <MotionSection id="for-owners" className="px-5 pb-20 sm:px-7 lg:px-10">
           <div className="relative mx-auto w-full max-w-[1180px] overflow-hidden rounded-[2rem] bg-ink px-6 py-12 text-white sm:px-10 lg:px-14 lg:py-14">
             <div aria-hidden="true" className="absolute inset-0">
               <div className="auth-grid absolute inset-0 opacity-60" />
@@ -340,7 +455,7 @@ export default async function HomePage() {
               </div>
             </div>
           </div>
-        </section>
+        </MotionSection>
       </main>
 
       <footer className="border-t border-ink/[0.06]">
