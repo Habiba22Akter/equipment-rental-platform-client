@@ -10,9 +10,9 @@ import { BrandMark } from "@/components/auth/brand-mark";
 import { cn } from "cn";
 
 const navigation = [
-  { href: "/#categories", label: "Browse gear" },
+  { href: "/", label: "Home" },
+  { href: "/#categories", label: "All Equipment" },
   { href: "/#how-it-works", label: "How it works" },
-  { href: "/#for-owners", label: "For owners" },
 ];
 
 export function SiteHeader() {
@@ -102,11 +102,11 @@ export function SiteHeader() {
               </div>
 
               <Link
-                href="/"
-                className="hidden size-9 place-items-center rounded-full border border-ink/10 text-ink/55 transition hover:border-ink/20 hover:text-ink sm:grid"
-                aria-label="Dashboard"
+                href="/dashboard"
+                className="hidden h-9 items-center gap-1.5 rounded-full border border-ink/10 px-3.5 text-[12px] font-semibold text-ink/60 transition hover:border-ink/20 hover:text-ink sm:inline-flex"
               >
                 <LayoutDashboard className="size-4" />
+                <span>Dashboard</span>
               </Link>
 
               <button
@@ -116,7 +116,7 @@ export function SiteHeader() {
                 className="inline-flex h-9 items-center gap-1.5 rounded-full border border-ink/10 px-3.5 text-[12px] font-semibold text-ink/60 transition hover:border-ink/20 hover:text-ink disabled:opacity-60"
               >
                 <LogOut className="size-3.5" />
-                <span className="hidden sm:inline">Sign out</span>
+                <span className="hidden sm:inline">Logout</span>
               </button>
             </>
           ) : (
@@ -125,13 +125,13 @@ export function SiteHeader() {
                 href="/signin"
                 className="hidden h-9 items-center rounded-full px-3.5 text-[12.5px] font-semibold text-ink/60 transition hover:bg-ink/[0.04] hover:text-ink sm:inline-flex"
               >
-                Sign in
+                Login
               </Link>
               <Link
                 href="/signup"
                 className="inline-flex h-9 items-center gap-1.5 rounded-full bg-ink px-4 text-[12.5px] font-semibold text-cream shadow-[0_10px_22px_-14px_rgba(11,31,26,0.8)] transition hover:bg-ink-soft"
               >
-                Get started
+                Register
               </Link>
             </>
           )}
@@ -173,9 +173,17 @@ export function SiteHeader() {
               onClick={() => setIsMenuOpen(false)}
               className="rounded-xl px-3 py-2.5 text-[13.5px] font-medium text-ink/65 transition hover:bg-ink/[0.04] hover:text-ink"
             >
-              Sign in
+              Login
             </Link>
-          ) : null}
+          ) : (
+            <Link
+              href="/dashboard"
+              onClick={() => setIsMenuOpen(false)}
+              className="rounded-xl px-3 py-2.5 text-[13.5px] font-medium text-ink/65 transition hover:bg-ink/[0.04] hover:text-ink"
+            >
+              Dashboard
+            </Link>
+          )}
         </nav>
       </div>
     </header>
