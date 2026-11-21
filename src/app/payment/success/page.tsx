@@ -10,16 +10,13 @@ export default function PaymentSuccessPage() {
 
   useEffect(() => {
     const sessionId = new URLSearchParams(window.location.search).get("session_id");
-    if (!sessionId) {
-      setStatus("error");
-      return;
-    }
-    fetch(`/api/payments/success?session_id=${encodeURIComponent(sessionId)}`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error();
-        setStatus("success");
-      })
-      .catch(() => setStatus("error"));
+    const request = sessionId
+      ? fetch(`/api/payments/success?session_id=${encodeURIComponent(sessionId)}`).then((response) => {
+          if (!response.ok) throw new Error("Payment not confirmed");
+        })
+      : Promise.reject(new Error("Missing Stripe session"));
+
+    request.then(() => setStatus("success")).catch(() => setStatus("error"));
   }, []);
 
   return (
