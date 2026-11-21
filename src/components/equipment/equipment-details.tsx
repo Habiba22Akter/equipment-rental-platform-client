@@ -214,6 +214,9 @@ export function EquipmentDetails({ equipment, reviews, role }: EquipmentDetailsP
               <FactCard icon={Package} label="Available" value={`${equipment.availableQuantity} unit${equipment.availableQuantity === 1 ? "" : "s"}`} />
               <FactCard icon={Clock3} label="Rental period" value={equipment.rentalType} />
               <FactCard icon={MapPin} label="Pickup area" value={equipment.location} />
+              <FactCard icon={Package} label="Brand" value={equipment.brand} />
+              <FactCard icon={Package} label="Model" value={equipment.model} />
+              <FactCard icon={ShieldCheck} label="Condition" value={equipment.condition} />
             </div>
 
             <div className="mt-7">

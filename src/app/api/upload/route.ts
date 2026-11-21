@@ -1,4 +1,6 @@
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
@@ -18,13 +20,17 @@ type ImgbbResponse = {
  * of being shipped to every browser with a NEXT_PUBLIC_ variable.
  */
 export async function POST(request: Request) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) {
+    return NextResponse.json({ error: "Sign in before uploading an image." }, { status: 401 });
+  }
+
   const apiKey = process.env.IMGBB_API_KEY;
 
   if (!apiKey) {
     return NextResponse.json(
       {
-        error:
-          "Image uploads are not configured yet. Paste a direct image URL instead, or add IMGBB_API_KEY.",
+        error: "ImgBB uploads are not configured. Add IMGBB_API_KEY to the server environment.",
       },
       { status: 503 },
     );

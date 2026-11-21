@@ -21,6 +21,9 @@ export type EquipmentDetails = FeaturedEquipment & {
   monthlyRate: number;
   availableQuantity: number;
   terms: string;
+  brand: string;
+  model: string;
+  condition: string;
   owner: {
     id: string;
     name: string;
@@ -41,6 +44,9 @@ type EquipmentDocument = {
   name?: unknown;
   description?: unknown;
   category?: unknown;
+  brand?: unknown;
+  model?: unknown;
+  condition?: unknown;
   location?: unknown;
   imageUrl?: unknown;
   image?: unknown;
@@ -184,6 +190,9 @@ export async function getEquipmentById(id: string) {
     name: asString(item.name, "Unnamed equipment"),
     description: asString(item.description, "Reliable equipment for your next project."),
     category: getEquipmentCategoryLabel(asString(item.category, "Equipment")),
+    brand: asString(item.brand, "Not specified"),
+    model: asString(item.model, "Not specified"),
+    condition: asString(item.condition, "Not specified"),
     location: asString(item.location, "Location unavailable"),
     imageUrl: asString(
       item.imageUrl ?? item.image,

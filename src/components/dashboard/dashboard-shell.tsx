@@ -63,6 +63,7 @@ type DashboardShellProps = {
 
 type DashboardTab =
   | "overview"
+  | "add-equipment"
   | "bookings"
   | "favorites"
   | "reviews"
@@ -106,6 +107,9 @@ type EquipmentRow = {
   name: string;
   description?: string;
   category: string;
+  brand?: string;
+  model?: string;
+  condition?: string;
   location: string;
   imageUrl?: string;
   image?: string;
@@ -164,11 +168,12 @@ function getNavigation(role: string): DashboardNavigation[] {
   if (role === "Owner") {
     return [
       { id: "overview", label: "Owner Dashboard", icon: LayoutDashboard },
-      { id: "listings", label: "Equipments", icon: Package },
-      { id: "bookings", label: "Rental Requests", icon: CalendarDays },
+      { id: "add-equipment", label: "Add Equipment", icon: PackagePlus },
+      { id: "listings", label: "My Equipment", icon: Package },
+      { id: "bookings", label: "My Equipment Rental", icon: CalendarDays },
       { id: "payments", label: "Payments", icon: DollarSign },
       { id: "reviews", label: "Reviews", icon: Star },
-      { id: "profile", label: "Profile Settings", icon: Settings },
+      { id: "profile", label: "My Profile", icon: Settings },
     ];
   }
 
@@ -413,7 +418,8 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
               />
             ) : null}
             {activeTab === "profile" ? <Profile user={user} /> : null}
-            {activeTab === "listings" ? <OwnerEquipment /> : null}
+            {activeTab === "listings" ? <OwnerEquipment user={user} /> : null}
+            {activeTab === "add-equipment" ? <OwnerEquipment user={user} initialOpen /> : null}
             {activeTab === "approvals" ? <AdminApprovals /> : null}
             {activeTab === "users" ? <AdminUsers currentUserId={user.id} /> : null}
             {activeTab === "payments" ? <Payments role={role} /> : null}
@@ -537,7 +543,7 @@ function Bookings({
         {role === "Customer" ? "Rental history" : "Marketplace bookings"}
       </p>
       <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">
-        {role === "Customer" ? "My Rentals" : role === "Owner" ? "Rental Requests" : "All Bookings"}
+        {role === "Customer" ? "My Rentals" : role === "Owner" ? "My Equipment Rental" : "All Bookings"}
       </h1>
       <p className="mt-2 text-[13px] text-ink/50">
         {role === "Customer"
@@ -814,10 +820,10 @@ function FavoriteEquipment({
   );
 }
 
-function OwnerEquipment() {
+function OwnerEquipment({ user, initialOpen = false }: { user: DashboardUser; initialOpen?: boolean }) {
   const [equipment, setEquipment] = useState<EquipmentRow[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [submitting, setSubmitting] = useState(false);
   const [editing, setEditing] = useState<EquipmentRow | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -865,9 +871,8 @@ function OwnerEquipment() {
     const file = formData.get("image");
 
     try {
-      let imageUrl = String(formData.get("imageUrl") ?? "").trim();
-      if (file instanceof File && file.size > 0) imageUrl = await uploadImage(file);
-      if (!imageUrl) throw new Error("Add an equipment image.");
+      if (!(file instanceof File) || file.size === 0) throw new Error("Choose an equipment image to upload.");
+      const imageUrl = await uploadImage(file);
 
       const response = await fetch("/api/owner/equipments", {
         method: "POST",
@@ -876,11 +881,12 @@ function OwnerEquipment() {
           name: formData.get("name"),
           description: formData.get("description"),
           category: formData.get("category"),
+          brand: formData.get("brand"),
+          model: formData.get("model"),
+          condition: formData.get("condition"),
           location: formData.get("location"),
           imageUrl,
-          dailyRate: Number(formData.get("dailyRate")),
-          weeklyRate: Number(formData.get("weeklyRate")) || undefined,
-          monthlyRate: Number(formData.get("monthlyRate")) || undefined,
+          rentalPrice: Number(formData.get("rentalPrice")),
           rentalType: formData.get("rentalType"),
           availableQuantity: Number(formData.get("availableQuantity")),
           terms: formData.get("terms"),
@@ -915,6 +921,9 @@ function OwnerEquipment() {
           name: formData.get("name"),
           description: formData.get("description"),
           category: formData.get("category"),
+          brand: formData.get("brand"),
+          model: formData.get("model"),
+          condition: formData.get("condition"),
           location: formData.get("location"),
           imageUrl: formData.get("imageUrl"),
           dailyRate: Number(formData.get("dailyRate")),
@@ -962,8 +971,8 @@ function OwnerEquipment() {
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
           <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Inventory</p>
-          <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">My Equipment</h1>
-          <p className="mt-2 text-[13px] text-ink/50">Create listings and track approval status.</p>
+          <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">{initialOpen ? "Add Equipment" : "My Equipment"}</h1>
+          <p className="mt-2 text-[13px] text-ink/50">{initialOpen ? "List your equipment with clear details and rental terms." : "Create listings and track approval status."}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger
@@ -975,26 +984,49 @@ function OwnerEquipment() {
           />
           <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Add equipment</DialogTitle>
-              <DialogDescription>Create a listing for customers to rent. It will remain pending until approved.</DialogDescription>
+            <DialogTitle>Add equipment</DialogTitle>
+            <DialogDescription>Create a listing for customers to rent. It will remain pending until approved.</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreate} className="grid gap-4 pt-2 sm:grid-cols-2">
               <OwnerField label="Equipment name" name="name"><input required name="name" placeholder="Excavator, camera, drill..." /></OwnerField>
-              <OwnerField label="Category" name="category"><input required name="category" placeholder="Construction Equipment" /></OwnerField>
+              <OwnerField label="Category" name="category">
+                <select required name="category" defaultValue="">
+                  <option value="" disabled>Select a category</option>
+                  <option>Construction Equipment</option>
+                  <option>Photography Equipment</option>
+                  <option>Vehicles &amp; Transportation</option>
+                  <option>Agriculture Equipment</option>
+                  <option>Electronics</option>
+                  <option>Event Equipment</option>
+                </select>
+              </OwnerField>
               <div className="sm:col-span-2"><OwnerField label="Description" name="description"><textarea required name="description" rows={3} placeholder="Describe the equipment, condition and included accessories." /></OwnerField></div>
+              <OwnerField label="Brand" name="brand"><input required name="brand" placeholder="e.g. Makita" /></OwnerField>
+              <OwnerField label="Model" name="model"><input required name="model" placeholder="e.g. XGT 40V" /></OwnerField>
+              <OwnerField label="Equipment condition" name="condition">
+                <select required name="condition" defaultValue="">
+                  <option value="" disabled>Select condition</option>
+                  <option>New</option><option>Like New</option><option>Good</option><option>Fair</option>
+                </select>
+              </OwnerField>
               <OwnerField label="Location" name="location"><input required name="location" placeholder="Chattogram, Bangladesh" /></OwnerField>
               <OwnerField label="Rental type" name="rentalType">
                 <select required name="rentalType" defaultValue="Daily">
                   <option>Daily</option><option>Weekly</option><option>Monthly</option>
                 </select>
               </OwnerField>
-              <OwnerField label="Daily price" name="dailyRate"><input required name="dailyRate" type="number" min="1" step="0.01" placeholder="50" /></OwnerField>
+              <OwnerField label="Rental price" name="rentalPrice"><input required name="rentalPrice" type="number" min="0.01" step="0.01" placeholder="50" /></OwnerField>
               <OwnerField label="Available quantity" name="availableQuantity"><input required name="availableQuantity" type="number" min="1" step="1" defaultValue="1" /></OwnerField>
-              <OwnerField label="Weekly price (optional)" name="weeklyRate"><input name="weeklyRate" type="number" min="1" step="0.01" placeholder="300" /></OwnerField>
-              <OwnerField label="Monthly price (optional)" name="monthlyRate"><input name="monthlyRate" type="number" min="1" step="0.01" placeholder="1200" /></OwnerField>
-              <div className="sm:col-span-2"><OwnerField label="Rental terms" name="terms"><textarea name="terms" rows={2} placeholder="Pickup, damage policy, late return..." /></OwnerField></div>
-              <div className="sm:col-span-2"><OwnerField label="Image URL (or upload below)" name="imageUrl"><input name="imageUrl" type="url" placeholder="https://..." /></OwnerField></div>
-              <div className="sm:col-span-2"><OwnerField label="Upload image" name="image"><input name="image" type="file" accept="image/*" /></OwnerField></div>
+              <div className="sm:col-span-2"><OwnerField label="Rental terms and conditions" name="terms"><textarea required name="terms" rows={3} placeholder="Pickup, damage policy, late return..." /></OwnerField></div>
+              <div className="sm:col-span-2"><OwnerField label="Equipment image (ImgBB upload)" name="image"><input required name="image" type="file" accept="image/*" /></OwnerField><p className="mt-1 text-[10px] text-ink/40">Upload one image up to 5 MB. The image is hosted on ImgBB.</p></div>
+              <div className="sm:col-span-2 rounded-xl border border-ink/10 bg-cream/70 p-3 text-[11px] text-ink/60">
+                <p className="font-bold text-ink">Owner information</p>
+                <p className="mt-1">{user.name} · {user.email}</p>
+              </div>
+              <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px]">
+                <span className="font-semibold text-amber-800">Listing status</span>
+                <span className="rounded-full bg-amber-100 px-2.5 py-1 font-bold text-amber-800">Pending admin approval</span>
+              </div>
               <button disabled={submitting} type="submit" className="sm:col-span-2 h-11 rounded-xl bg-ink text-[12px] font-semibold text-cream disabled:opacity-50">
                 {submitting ? "Adding equipment..." : "Add equipment"}
               </button>
@@ -1014,8 +1046,19 @@ function OwnerEquipment() {
           {editing ? (
             <form onSubmit={handleUpdate} className="grid gap-4 pt-2 sm:grid-cols-2">
               <OwnerField label="Equipment name" name="name"><input required name="name" defaultValue={editing.name} /></OwnerField>
-              <OwnerField label="Category" name="category"><input required name="category" defaultValue={editing.category} /></OwnerField>
+              <OwnerField label="Category" name="category">
+                <select required name="category" defaultValue={editing.category}>
+                  <option>Construction Equipment</option><option>Photography Equipment</option><option>Vehicles &amp; Transportation</option><option>Agriculture Equipment</option><option>Electronics</option><option>Event Equipment</option>
+                </select>
+              </OwnerField>
               <div className="sm:col-span-2"><OwnerField label="Description" name="description"><textarea required name="description" rows={3} defaultValue={editing.description ?? ""} /></OwnerField></div>
+              <OwnerField label="Brand" name="brand"><input required name="brand" defaultValue={editing.brand ?? ""} /></OwnerField>
+              <OwnerField label="Model" name="model"><input required name="model" defaultValue={editing.model ?? ""} /></OwnerField>
+              <OwnerField label="Equipment condition" name="condition">
+                <select required name="condition" defaultValue={editing.condition ?? "Good"}>
+                  <option>New</option><option>Like New</option><option>Good</option><option>Fair</option>
+                </select>
+              </OwnerField>
               <OwnerField label="Location" name="location"><input required name="location" defaultValue={editing.location} /></OwnerField>
               <OwnerField label="Rental type" name="rentalType">
                 <select required name="rentalType" defaultValue={editing.rentalType ?? "Daily"}>
@@ -1051,7 +1094,7 @@ function OwnerEquipment() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Equipment</TableHead><TableHead>Category</TableHead><TableHead>Location</TableHead><TableHead>Price</TableHead><TableHead>Quantity</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead>
+                <TableHead>Equipment</TableHead><TableHead>Category</TableHead><TableHead>Condition</TableHead><TableHead>Location</TableHead><TableHead>Price</TableHead><TableHead>Quantity</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1063,10 +1106,14 @@ function OwnerEquipment() {
                       <div className="flex items-center gap-3">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={item.imageUrl ?? item.image ?? ""} alt="" className="size-12 rounded-xl object-cover" />
-                        <span className="font-bold">{item.name}</span>
+                        <div>
+                          <span className="font-bold">{item.name}</span>
+                          <p className="mt-1 text-[10px] text-ink/45">{[item.brand, item.model].filter(Boolean).join(" · ") || "Brand/model not provided"}</p>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>{item.category}</TableCell>
+                    <TableCell>{item.condition ?? "—"}</TableCell>
                     <TableCell>{item.location}</TableCell>
                     <TableCell>${Number(item.dailyRate ?? 0).toFixed(2)} / day</TableCell>
                     <TableCell>{item.availableQuantity ?? item.quantity ?? 1}</TableCell>
@@ -1758,7 +1805,9 @@ function Profile({ user }: { user: DashboardUser }) {
   return (
     <div>
       <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Account</p>
-      <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">Profile Settings</h1>
+      <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">
+        {user.role === "Owner" ? "My Profile" : "Profile Settings"}
+      </h1>
       <p className="mt-2 text-[13px] text-ink/50">
         Update how your name and photo appear to other GearGrid members.
       </p>
