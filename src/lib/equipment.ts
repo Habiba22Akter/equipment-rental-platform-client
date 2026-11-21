@@ -1,4 +1,4 @@
-import { MongoClient, ObjectId } from "mongodb";
+import { MongoClient, ObjectId, type Sort } from "mongodb";
 
 export type FeaturedEquipment = {
   id: string;
@@ -21,6 +21,13 @@ export type EquipmentDetails = FeaturedEquipment & {
     name: string;
     email: string;
   };
+};
+
+export type EquipmentFilters = {
+  q?: string;
+  category?: string;
+  sort?: "newest" | "price-asc" | "price-desc";
+  limit?: number;
 };
 
 type EquipmentDocument = {
@@ -74,6 +81,25 @@ function asNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function toFeaturedEquipment(item: EquipmentDocument): FeaturedEquipment {
+  return {
+    id: item._id.toString(),
+    name: asString(item.name, "Unnamed equipment"),
+    description: asString(item.description, "Reliable equipment for your next project."),
+    category: asString(item.category, "Equipment"),
+    location: asString(item.location, "Location unavailable"),
+    imageUrl: asString(
+      item.imageUrl ?? item.image,
+      "https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&w=900&q=85",
+    ),
+    dailyRate: asNumber(item.dailyRate ?? item.pricePerDay),
+  };
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export async function getFeaturedEquipment() {
   const client = getMongoClient();
   const database = client.db(process.env.DB_NAME ?? "equipment-rental-platform");
@@ -99,6 +125,61 @@ export async function getFeaturedEquipment() {
     ),
     dailyRate: asNumber(item.dailyRate ?? item.pricePerDay),
   })) satisfies FeaturedEquipment[];
+}
+
+export async function getEquipmentList(filters: EquipmentFilters = {}) {
+  const client = getMongoClient();
+  const database = client.db(process.env.DB_NAME ?? "equipment-rental-platform");
+  const conditions: Record<string, unknown>[] = [
+    { $or: [{ status: "approved" }, { approvalStatus: "approved" }] },
+  ];
+
+  if (filters.category) {
+    conditions.push({ category: filters.category });
+  }
+
+  if (filters.q) {
+    const pattern = new RegExp(escapeRegex(filters.q.trim()), "i");
+    conditions.push({
+      $or: [
+        { name: pattern },
+        { description: pattern },
+        { category: pattern },
+        { location: pattern },
+      ],
+    });
+  }
+
+  const sort: Sort =
+    filters.sort === "price-asc"
+      ? { dailyRate: 1 }
+      : filters.sort === "price-desc"
+        ? { dailyRate: -1 }
+        : { createdAt: -1 };
+
+  const limit = Math.min(Math.max(filters.limit ?? 24, 1), 60);
+  const equipment = await database
+    .collection<EquipmentDocument>("equipment")
+    .find({ $and: conditions })
+    .sort(sort)
+    .limit(limit)
+    .toArray();
+
+  return equipment.map(toFeaturedEquipment);
+}
+
+export async function getEquipmentCategories() {
+  const client = getMongoClient();
+  const database = client.db(process.env.DB_NAME ?? "equipment-rental-platform");
+  const categories = await database
+    .collection<EquipmentDocument>("equipment")
+    .distinct("category", {
+      $or: [{ status: "approved" }, { approvalStatus: "approved" }],
+    });
+
+  return categories
+    .filter((category): category is string => typeof category === "string" && Boolean(category.trim()))
+    .sort((a, b) => a.localeCompare(b));
 }
 
 export async function getEquipmentById(id: string) {
