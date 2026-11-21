@@ -9,6 +9,9 @@ const serverUrl = process.env.EQUIPMENT_API_URL ?? "http://localhost:5001";
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (session.user.role !== "Owner") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const response = await fetch(`${serverUrl}/api/equipments`, { cache: "no-store" });
   const payload = await response.json();
@@ -30,6 +33,9 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (session.user.role !== "Owner") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const body = await request.json();
   const response = await fetch(`${serverUrl}/api/equipments`, {

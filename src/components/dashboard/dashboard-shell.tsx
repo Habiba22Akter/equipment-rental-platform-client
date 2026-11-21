@@ -53,6 +53,7 @@ type DashboardUser = {
 
 type DashboardShellProps = {
   user: DashboardUser;
+  initialTab?: DashboardTab;
 };
 
 type DashboardTab =
@@ -76,7 +77,7 @@ function getNavigation(role: string): DashboardNavigation[] {
   if (role === "Owner") {
     return [
       { id: "overview", label: "Owner Dashboard", icon: LayoutDashboard },
-      { id: "listings", label: "My Listings", icon: Package },
+      { id: "listings", label: "Equipments", icon: Package },
       { id: "bookings", label: "Rental Requests", icon: CalendarDays },
       { id: "payments", label: "Payments", icon: DollarSign },
       { id: "reviews", label: "Reviews", icon: Star },
@@ -125,9 +126,9 @@ const recentBookings = [
   },
 ];
 
-export function DashboardShell({ user }: DashboardShellProps) {
+export function DashboardShell({ user, initialTab = "overview" }: DashboardShellProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
+  const [activeTab, setActiveTab] = useState<DashboardTab>(initialTab);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [favorites, setFavorites] = useState<Array<{ equipmentId: string; name: string; imageUrl: string; category: string; dailyRate: number; location: string }>>([]);
   const [favoritesLoaded, setFavoritesLoaded] = useState(false);
