@@ -13,12 +13,13 @@ async function adminSession() {
 }
 
 export async function GET(request: Request) {
-  const { error } = await adminSession();
+  const { session, error } = await adminSession();
   if (error) return error;
 
   const role = new URL(request.url).searchParams.get("role");
   const result = await serverFetch<unknown[]>(
     `/api/users${role ? `?role=${encodeURIComponent(role)}` : ""}`,
+    { user: { id: session.user.id, role: session.user.role } },
   );
 
   if (!result.ok) {
@@ -42,8 +43,8 @@ export async function PATCH(request: Request) {
   if (!userId) {
     return NextResponse.json({ error: "User id is required." }, { status: 400 });
   }
-  if (role !== "Customer" && role !== "Owner") {
-    return NextResponse.json({ error: "Role must be Customer or Owner." }, { status: 400 });
+  if (role !== "Customer" && role !== "Owner" && role !== "Admin") {
+    return NextResponse.json({ error: "Role must be Customer, Owner or Admin." }, { status: 400 });
   }
   if (userId === session.user.id) {
     return NextResponse.json({ error: "You cannot change your own role." }, { status: 400 });

@@ -180,11 +180,11 @@ function getNavigation(role: string): DashboardNavigation[] {
   if (role === "Admin") {
     return [
       { id: "overview", label: "Admin Dashboard", icon: LayoutDashboard },
-      { id: "users", label: "Manage Users", icon: Users },
-      { id: "approvals", label: "Equipment Approvals", icon: ClipboardCheck },
-      { id: "bookings", label: "All Bookings", icon: CalendarDays },
+      { id: "users", label: "All Users", icon: Users },
+      { id: "approvals", label: "All Equipment", icon: ClipboardCheck },
+      { id: "bookings", label: "All Rentals", icon: CalendarDays },
       { id: "payments", label: "Payments", icon: DollarSign },
-      { id: "profile", label: "Profile Settings", icon: Settings },
+      { id: "profile", label: "My Profile", icon: Settings },
     ];
   }
 
@@ -420,7 +420,7 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
             {activeTab === "profile" ? <Profile user={user} /> : null}
             {activeTab === "listings" ? <OwnerEquipment user={user} /> : null}
             {activeTab === "add-equipment" ? <OwnerEquipment user={user} initialOpen /> : null}
-            {activeTab === "approvals" ? <AdminApprovals /> : null}
+            {activeTab === "approvals" ? <AdminEquipment /> : null}
             {activeTab === "users" ? <AdminUsers currentUserId={user.id} /> : null}
             {activeTab === "payments" ? <Payments role={role} /> : null}
           </motion.div>
@@ -543,7 +543,7 @@ function Bookings({
         {role === "Customer" ? "Rental history" : "Marketplace bookings"}
       </p>
       <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">
-        {role === "Customer" ? "My Rentals" : role === "Owner" ? "My Equipment Rental" : "All Bookings"}
+        {role === "Customer" ? "My Rentals" : role === "Owner" ? "My Equipment Rental" : "All Rentals"}
       </h1>
       <p className="mt-2 text-[13px] text-ink/50">
         {role === "Customer"
@@ -1220,14 +1220,14 @@ function OwnerEquipment({ user, initialOpen = false }: { user: DashboardUser; in
   );
 }
 
-function AdminApprovals() {
+function AdminEquipment() {
   const [equipment, setEquipment] = useState<EquipmentRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/admin/equipments?status=pending", { cache: "no-store" })
+    fetch("/api/admin/equipments?status=all", { cache: "no-store" })
       .then((response) => response.ok ? response.json() : { equipment: [] })
       .then((data) => {
         if (!cancelled) setEquipment(data.equipment ?? []);
@@ -1242,7 +1242,7 @@ function AdminApprovals() {
     };
   }, []);
 
-  async function review(item: EquipmentRow, status: "approved" | "rejected") {
+  async function review(item: EquipmentRow, status: "pending" | "approved" | "rejected") {
     setBusyId(item._id);
     try {
       const response = await fetch("/api/admin/equipments", {
@@ -1253,8 +1253,10 @@ function AdminApprovals() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not review equipment.");
 
-      setEquipment((rows) => rows.filter((row) => row._id !== item._id));
-      toast.success(status === "approved" ? "Listing approved." : "Listing rejected.");
+      setEquipment((rows) => rows.map((row) => row._id === item._id
+        ? { ...row, status, approvalStatus: status }
+        : row));
+      toast.success(`Listing marked ${status}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not review equipment.");
     } finally {
@@ -1264,9 +1266,9 @@ function AdminApprovals() {
 
   return (
     <div>
-      <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Marketplace quality</p>
-      <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">Equipment Approvals</h1>
-      <p className="mt-2 text-[13px] text-ink/50">New listings wait here until an admin approves them.</p>
+      <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Marketplace inventory</p>
+      <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">All Equipment</h1>
+      <p className="mt-2 text-[13px] text-ink/50">Review every equipment listing and manage its approval status.</p>
 
       {!loaded ? (
         <div className="mt-8 h-64 animate-pulse rounded-2xl bg-white" />
@@ -1274,8 +1276,8 @@ function AdminApprovals() {
         <div className="mt-8 grid min-h-64 place-items-center rounded-2xl border border-dashed border-ink/15 bg-white p-8 text-center">
           <div>
             <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-cream text-ink/50"><ClipboardCheck className="size-5" /></span>
-            <p className="mt-4 text-[14px] font-bold">Nothing waiting for review</p>
-            <p className="mt-2 text-[12px] text-ink/45">New owner listings will appear here automatically.</p>
+            <p className="mt-4 text-[14px] font-bold">No equipment listings found</p>
+            <p className="mt-2 text-[12px] text-ink/45">Owner listings will appear here when they are created.</p>
           </div>
         </div>
       ) : (
@@ -1291,25 +1293,26 @@ function AdminApprovals() {
                     {item.category} · {item.location} · ${Number(item.dailyRate ?? 0).toFixed(2)}/day
                   </p>
                   <p className="mt-1 text-[10px] text-ink/35">Owner: {item.ownerName ?? "Unknown"}</p>
+                  <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[9px] font-bold capitalize ${APPROVAL_BADGE[item.status ?? item.approvalStatus ?? "pending"] ?? "bg-amber-50 text-amber-700"}`}>
+                    {item.status ?? item.approvalStatus ?? "pending"}
+                  </span>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
+              <div className="flex items-center gap-2">
+                <Link href={`/equipment/${item._id}`} className="inline-flex h-9 items-center rounded-lg border border-ink/10 px-3 text-[10px] font-semibold text-ink/65">
+                  View details
+                </Link>
+                <select
+                  value={item.status ?? item.approvalStatus ?? "pending"}
                   disabled={busyId === item._id}
-                  onClick={() => review(item, "approved")}
-                  className="inline-flex h-9 items-center rounded-lg bg-ink px-3 text-[10px] font-semibold text-cream disabled:opacity-50"
+                  onChange={(event) => review(item, event.target.value as "pending" | "approved" | "rejected")}
+                  className="h-9 rounded-lg border border-ink/10 bg-white px-2 text-[10px] font-semibold disabled:opacity-50"
+                  aria-label={`Approval status for ${item.name}`}
                 >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  disabled={busyId === item._id}
-                  onClick={() => review(item, "rejected")}
-                  className="inline-flex h-9 items-center rounded-lg border border-ink/10 px-3 text-[10px] font-semibold text-red-500 disabled:opacity-50"
-                >
-                  Reject
-                </button>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
               </div>
             </div>
           ))}
@@ -1364,8 +1367,8 @@ function AdminUsers({ currentUserId }: { currentUserId?: string }) {
   return (
     <div>
       <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Community</p>
-      <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">Manage Users</h1>
-      <p className="mt-2 text-[13px] text-ink/50">Promote trusted renters to owners or return them to customers.</p>
+      <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">All Users</h1>
+      <p className="mt-2 text-[13px] text-ink/50">Review registered accounts and manage user roles.</p>
 
       {!loaded ? (
         <div className="mt-8 h-64 animate-pulse rounded-2xl bg-white" />
@@ -1378,7 +1381,7 @@ function AdminUsers({ currentUserId }: { currentUserId?: string }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>User</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Joined</TableHead><TableHead>Change role</TableHead>
+                <TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Registration Date</TableHead><TableHead>Manage Users · Change Role</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1396,8 +1399,8 @@ function AdminUsers({ currentUserId }: { currentUserId?: string }) {
                     </TableCell>
                     <TableCell>{user.createdAt ? formatDate(user.createdAt) : "—"}</TableCell>
                     <TableCell>
-                      {role === "Admin" || isSelf ? (
-                        <span className="text-[10px] text-ink/35">{isSelf ? "Your account" : "Admin"}</span>
+                      {isSelf ? (
+                        <span className="text-[10px] text-ink/35">Your account</span>
                       ) : (
                         <select
                           value={role}
@@ -1408,6 +1411,7 @@ function AdminUsers({ currentUserId }: { currentUserId?: string }) {
                         >
                           <option value="Customer">Customer</option>
                           <option value="Owner">Owner</option>
+                          <option value="Admin">Admin</option>
                         </select>
                       )}
                     </TableCell>
@@ -1883,7 +1887,7 @@ function Profile({ user }: { user: DashboardUser }) {
     <div>
       <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Account</p>
       <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">
-        {user.role === "Owner" ? "My Profile" : "Profile Settings"}
+        {user.role === "Owner" || user.role === "Admin" ? "My Profile" : "Profile Settings"}
       </h1>
       <p className="mt-2 text-[13px] text-ink/50">
         Update how your name and photo appear to other GearGrid members.
