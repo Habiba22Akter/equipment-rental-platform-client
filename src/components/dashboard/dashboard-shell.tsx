@@ -99,6 +99,7 @@ type Booking = {
     location: string;
     ownerId: string;
     ownerName: string;
+    ownerEmail: string;
   } | null;
 };
 
@@ -673,6 +674,63 @@ function Bookings({
                         value={booking.status}
                         onChange={(event) => onStatusChange(booking._id, event.target.value)}
                         className="h-8 rounded-lg border border-ink/10 bg-white px-2 text-[10px] font-semibold capitalize text-ink/70"
+                        aria-label={`Booking status for ${booking.equipment?.name ?? "equipment"}`}
+                      >
+                        <option value="confirmed">Confirmed</option>
+                        <option value="active">Active</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : role === "Admin" ? (
+          <div className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-white">
+            <Table>
+              <TableCaption className="px-4 pb-4 text-left text-[10px] text-ink/40">
+                All rental bookings across the marketplace.
+              </TableCaption>
+              <TableHeader>
+                <TableRow className="bg-cream/70 hover:bg-cream/70">
+                  <TableHead className="px-4 text-[10px] font-bold text-ink/55">Customer Information</TableHead>
+                  <TableHead className="text-[10px] font-bold text-ink/55">Owner Information</TableHead>
+                  <TableHead className="text-[10px] font-bold text-ink/55">Equipment Name</TableHead>
+                  <TableHead className="text-[10px] font-bold text-ink/55">Rental Duration</TableHead>
+                  <TableHead className="text-right text-[10px] font-bold text-ink/55">Booking Amount</TableHead>
+                  <TableHead className="text-[10px] font-bold text-ink/55">Payment Status</TableHead>
+                  <TableHead className="px-4 text-[10px] font-bold text-ink/55">Booking Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {bookings.map((booking) => (
+                  <TableRow key={booking._id}>
+                    <TableCell className="max-w-48 px-4">
+                      <p className="truncate text-[10.5px] font-semibold text-ink">{booking.customerName ?? "Customer"}</p>
+                      <p className="mt-1 truncate text-[9.5px] text-ink/45">{booking.customerEmail ?? "Email unavailable"}</p>
+                    </TableCell>
+                    <TableCell className="max-w-48">
+                      <p className="truncate text-[10.5px] font-semibold text-ink">{booking.equipment?.ownerName ?? "Owner"}</p>
+                      <p className="mt-1 truncate text-[9.5px] text-ink/45">{booking.equipment?.ownerEmail || "Email unavailable"}</p>
+                    </TableCell>
+                    <TableCell className="max-w-48 text-[10.5px] font-semibold">{booking.equipment?.name ?? "Equipment"}</TableCell>
+                    <TableCell className="whitespace-nowrap text-[9.5px] leading-5 text-ink/60">
+                      <span className="block">From {formatDate(booking.startDate)}</span>
+                      <span className="block">To {formatDate(booking.endDate)}</span>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-right text-[10.5px] font-bold">{money(booking.totalAmount)}</TableCell>
+                    <TableCell>
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-semibold capitalize ${booking.paymentStatus === "paid" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                        {booking.paymentStatus ?? "pending"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="px-4">
+                      <select
+                        value={booking.status}
+                        onChange={(event) => onStatusChange(booking._id, event.target.value)}
+                        className="h-8 rounded-lg border border-ink/10 bg-white px-2 text-[9.5px] font-semibold capitalize text-ink/70"
                         aria-label={`Booking status for ${booking.equipment?.name ?? "equipment"}`}
                       >
                         <option value="confirmed">Confirmed</option>
