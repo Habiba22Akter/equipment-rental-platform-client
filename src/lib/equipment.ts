@@ -1,4 +1,4 @@
-import { MongoClient, ObjectId, type Sort } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import { connection } from "next/server";
 
 export type FeaturedEquipment = {
@@ -9,6 +9,10 @@ export type FeaturedEquipment = {
   location: string;
   imageUrl: string;
   dailyRate: number;
+  weeklyRate: number;
+  monthlyRate: number;
+  rentalType: "Daily" | "Weekly" | "Monthly";
+  availableQuantity: number;
 };
 
 export type EquipmentDetails = FeaturedEquipment & {
@@ -22,13 +26,6 @@ export type EquipmentDetails = FeaturedEquipment & {
     name: string;
     email: string;
   };
-};
-
-export type EquipmentFilters = {
-  q?: string;
-  category?: string;
-  sort?: "newest" | "price-asc" | "price-desc";
-  limit?: number;
 };
 
 export type EquipmentReview = {
@@ -90,42 +87,56 @@ function asNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-function toFeaturedEquipment(item: EquipmentDocument): FeaturedEquipment {
-  return {
-    id: item._id.toString(),
-    name: asString(item.name, "Unnamed equipment"),
-    description: asString(item.description, "Reliable equipment for your next project."),
-    category: asString(item.category, "Equipment"),
-    location: asString(item.location, "Location unavailable"),
-    imageUrl: asString(
-      item.imageUrl ?? item.image,
-      "https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&w=900&q=85",
-    ),
-    dailyRate: asNumber(item.dailyRate ?? item.pricePerDay),
-  };
+function getRentalType(value: unknown): FeaturedEquipment["rentalType"] {
+  return value === "Weekly" || value === "Monthly" ? value : "Daily";
 }
 
-function escapeRegex(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function getAvailableQuantity(item: EquipmentDocument) {
+  const value = item.availableQuantity ?? item.quantity;
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : 1;
 }
 
 function normalizeCategory(value: string) {
   return value.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-const categoryAliases: Record<string, string[]> = {
-  "construction equipment": ["construction", "construction equipment"],
-  "photography equipment": ["photography", "photographic equipment", "photography equipment"],
-  "vehicles and transportation": [
-    "vehicle",
-    "vehicles",
-    "transportation",
-    "vehicles and transportation",
-  ],
-  "agriculture equipment": ["agriculture", "agricultural", "agriculture equipment"],
-  electronics: ["electronic", "electronics"],
-  "event equipment": ["event", "events", "event equipment"],
-};
+const categoryDefinitions = [
+  { label: "Construction Equipment", aliases: ["construction", "construction equipment"] },
+  { label: "Photography Equipment", aliases: ["photography", "photographic equipment", "photography equipment"] },
+  { label: "Vehicles & Transportation", aliases: ["vehicle", "vehicles", "transportation", "vehicles and transportation"] },
+  { label: "Agriculture Equipment", aliases: ["agriculture", "agricultural", "agriculture equipment"] },
+  { label: "Electronics", aliases: ["electronic", "electronics"] },
+  { label: "Event Equipment", aliases: ["event", "events", "event equipment"] },
+];
+
+export function getEquipmentCategoryLabel(value: string) {
+  const normalized = normalizeCategory(value);
+  return categoryDefinitions.find((definition) =>
+    definition.aliases.some((alias) => normalizeCategory(alias) === normalized),
+  )?.label ?? value;
+}
+
+function toFeaturedEquipment(item: EquipmentDocument): FeaturedEquipment {
+  const dailyRate = asNumber(item.dailyRate ?? item.pricePerDay);
+  const weeklyRate = asNumber(item.weeklyRate) || dailyRate * 7;
+  const monthlyRate = asNumber(item.monthlyRate) || dailyRate * 30;
+  return {
+    id: item._id.toString(),
+    name: asString(item.name, "Unnamed equipment"),
+    description: asString(item.description, "Reliable equipment for your next project."),
+    category: getEquipmentCategoryLabel(asString(item.category, "Equipment")),
+    location: asString(item.location, "Location unavailable"),
+    imageUrl: asString(
+      item.imageUrl ?? item.image,
+      "https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&w=900&q=85",
+    ),
+    dailyRate,
+    weeklyRate,
+    monthlyRate,
+    rentalType: getRentalType(item.rentalType),
+    availableQuantity: getAvailableQuantity(item),
+  };
+}
 
 export async function getFeaturedEquipment() {
   await connection();
@@ -141,81 +152,7 @@ export async function getFeaturedEquipment() {
     .limit(6)
     .toArray();
 
-  return equipment.map((item) => ({
-    id: item._id.toString(),
-    name: asString(item.name, "Unnamed equipment"),
-    description: asString(item.description, "Reliable equipment for your next project."),
-    category: asString(item.category, "Equipment"),
-    location: asString(item.location, "Location unavailable"),
-    imageUrl: asString(
-      item.imageUrl ?? item.image,
-      "https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&w=900&q=85",
-    ),
-    dailyRate: asNumber(item.dailyRate ?? item.pricePerDay),
-  })) satisfies FeaturedEquipment[];
-}
-
-export async function getEquipmentList(filters: EquipmentFilters = {}) {
-  await connection();
-  const client = getMongoClient();
-  const database = client.db(process.env.DB_NAME ?? "equipment-rental-platform");
-  const conditions: Record<string, unknown>[] = [
-    { $or: [{ status: "approved" }, { approvalStatus: "approved" }] },
-  ];
-
-  if (filters.category) {
-    const normalizedCategory = normalizeCategory(filters.category);
-    const categoryValues = categoryAliases[normalizedCategory] ?? [filters.category];
-    conditions.push({
-      category: {
-        $in: categoryValues.map((value) => new RegExp(`^${escapeRegex(value)}$`, "i")),
-      },
-    });
-  }
-
-  if (filters.q) {
-    const pattern = new RegExp(escapeRegex(filters.q.trim()), "i");
-    conditions.push({
-      $or: [
-        { name: pattern },
-        { description: pattern },
-        { category: pattern },
-        { location: pattern },
-      ],
-    });
-  }
-
-  const sort: Sort =
-    filters.sort === "price-asc"
-      ? { dailyRate: 1 }
-      : filters.sort === "price-desc"
-        ? { dailyRate: -1 }
-        : { createdAt: -1 };
-
-  const limit = Math.min(Math.max(filters.limit ?? 24, 1), 60);
-  const equipment = await database
-    .collection<EquipmentDocument>("equipment")
-    .find({ $and: conditions })
-    .sort(sort)
-    .limit(limit)
-    .toArray();
-
-  return equipment.map(toFeaturedEquipment);
-}
-
-export async function getEquipmentCategories() {
-  await connection();
-  const client = getMongoClient();
-  const database = client.db(process.env.DB_NAME ?? "equipment-rental-platform");
-  const categories = await database
-    .collection<EquipmentDocument>("equipment")
-    .distinct("category", {
-      $or: [{ status: "approved" }, { approvalStatus: "approved" }],
-    });
-
-  return categories
-    .filter((category): category is string => typeof category === "string" && Boolean(category.trim()))
-    .sort((a, b) => a.localeCompare(b));
+  return equipment.map(toFeaturedEquipment) satisfies FeaturedEquipment[];
 }
 
 export async function getEquipmentById(id: string) {
@@ -246,7 +183,7 @@ export async function getEquipmentById(id: string) {
     id: item._id.toString(),
     name: asString(item.name, "Unnamed equipment"),
     description: asString(item.description, "Reliable equipment for your next project."),
-    category: asString(item.category, "Equipment"),
+    category: getEquipmentCategoryLabel(asString(item.category, "Equipment")),
     location: asString(item.location, "Location unavailable"),
     imageUrl: asString(
       item.imageUrl ?? item.image,
