@@ -1094,12 +1094,19 @@ function OwnerEquipment({ user, initialOpen = false }: { user: DashboardUser; in
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Equipment</TableHead><TableHead>Category</TableHead><TableHead>Condition</TableHead><TableHead>Location</TableHead><TableHead>Price</TableHead><TableHead>Quantity</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead>
+                <TableHead>Equipment Name</TableHead><TableHead>Category</TableHead><TableHead>Rental Price</TableHead><TableHead>Available Quantity</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {equipment.map((item) => {
                 const status = item.status ?? item.approvalStatus ?? "pending";
+                const rentalType = item.rentalType === "Weekly" || item.rentalType === "Monthly" ? item.rentalType : "Daily";
+                const dailyRate = Number(item.dailyRate ?? 0);
+                const rentalPrice = rentalType === "Weekly"
+                  ? Number(item.weeklyRate ?? dailyRate * 7)
+                  : rentalType === "Monthly"
+                    ? Number(item.monthlyRate ?? dailyRate * 30)
+                    : dailyRate;
                 return (
                   <TableRow key={item._id}>
                     <TableCell>
@@ -1113,9 +1120,7 @@ function OwnerEquipment({ user, initialOpen = false }: { user: DashboardUser; in
                       </div>
                     </TableCell>
                     <TableCell>{item.category}</TableCell>
-                    <TableCell>{item.condition ?? "—"}</TableCell>
-                    <TableCell>{item.location}</TableCell>
-                    <TableCell>${Number(item.dailyRate ?? 0).toFixed(2)} / day</TableCell>
+                    <TableCell>{money(rentalPrice)} / {rentalType.toLowerCase()}</TableCell>
                     <TableCell>{item.availableQuantity ?? item.quantity ?? 1}</TableCell>
                     <TableCell>
                       <span className={`rounded-full px-2.5 py-1 text-[9px] font-bold capitalize ${APPROVAL_BADGE[status] ?? "bg-amber-50 text-amber-700"}`}>
@@ -1123,13 +1128,18 @@ function OwnerEquipment({ user, initialOpen = false }: { user: DashboardUser; in
                       </span>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1">
-                        <button type="button" onClick={() => setEditing(item)} className="grid size-8 place-items-center rounded-lg border border-ink/10 text-ink/55" aria-label={`Edit ${item.name}`}>
+                      <div className="flex min-w-max items-center gap-1.5">
+                        <button type="button" onClick={() => setEditing(item)} className="inline-flex h-8 items-center gap-1 rounded-lg border border-ink/10 px-2 text-[10px] font-semibold text-ink/65" aria-label={`Update ${item.name}`}>
                           <Pencil className="size-3.5" />
+                          Update
                         </button>
-                        <button type="button" onClick={() => handleDelete(item)} disabled={deletingId === item._id} className="grid size-8 place-items-center rounded-lg border border-ink/10 text-red-500 disabled:opacity-40" aria-label={`Delete ${item.name}`}>
+                        <button type="button" onClick={() => handleDelete(item)} disabled={deletingId === item._id} className="inline-flex h-8 items-center gap-1 rounded-lg border border-ink/10 px-2 text-[10px] font-semibold text-red-500 disabled:opacity-40" aria-label={`Delete ${item.name}`}>
                           <Trash2 className="size-3.5" />
+                          Delete
                         </button>
+                        <Link href={`/equipment/${item._id}`} className="inline-flex h-8 items-center rounded-lg bg-ink px-2.5 text-[10px] font-semibold text-cream transition hover:bg-ink-soft">
+                          View Details
+                        </Link>
                       </div>
                     </TableCell>
                   </TableRow>
