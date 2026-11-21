@@ -1,11 +1,17 @@
 "use client";
 
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
-import { CalendarDays, Heart, MapPin, Package, ShieldCheck, UserRound } from "lucide-react";
+import { CalendarDays, Heart, MapPin, Package, ShieldCheck, Star, UserRound } from "lucide-react";
 import { toast } from "sonner";
-import type { EquipmentDetails as Equipment } from "@/lib/equipment";
+import type { EquipmentDetails as Equipment, EquipmentReview } from "@/lib/equipment";
 
-export function EquipmentDetails({ equipment }: { equipment: Equipment }) {
+export function EquipmentDetails({
+  equipment,
+  reviews,
+}: {
+  equipment: Equipment;
+  reviews: EquipmentReview[];
+}) {
   const [isFavorite, setIsFavorite] = useState(false);
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -38,6 +44,10 @@ export function EquipmentDetails({ equipment }: { equipment: Equipment }) {
         : equipment.dailyRate;
     return units * rate * quantity;
   }, [startDate, endDate, quantity, equipment]);
+
+  const averageRating = reviews.length
+    ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+    : 0;
 
   async function toggleFavorite() {
     const method = isFavorite ? "DELETE" : "POST";
@@ -135,6 +145,49 @@ export function EquipmentDetails({ equipment }: { equipment: Equipment }) {
         </section>
       </div>
 
+      <section className="mt-6 rounded-2xl border border-ink/[0.08] bg-white p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-[16px] font-bold">Reviews</h2>
+          {reviews.length > 0 ? (
+            <div className="flex items-center gap-2">
+              <Stars rating={averageRating} />
+              <span className="text-[13px] font-bold">{averageRating.toFixed(1)}</span>
+              <span className="text-[11px] text-ink/40">
+                ({reviews.length} review{reviews.length === 1 ? "" : "s"})
+              </span>
+            </div>
+          ) : null}
+        </div>
+
+        {reviews.length === 0 ? (
+          <p className="mt-4 rounded-xl border border-dashed border-ink/15 p-6 text-center text-[12px] text-ink/45">
+            No reviews yet. Completed renters will be able to share their experience here.
+          </p>
+        ) : (
+          <div className="mt-5 space-y-4">
+            {reviews.map((review) => (
+              <article key={review.id} className="rounded-xl border border-ink/[0.08] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <span className="grid size-9 place-items-center rounded-full bg-ink text-[10px] font-bold text-lime">
+                      {getInitials(review.customerName)}
+                    </span>
+                    <div>
+                      <p className="text-[12px] font-bold">{review.customerName}</p>
+                      <p className="text-[10px] text-ink/35">{formatReviewDate(review.createdAt)}</p>
+                    </div>
+                  </div>
+                  <Stars rating={review.rating} />
+                </div>
+                {review.comment ? (
+                  <p className="mt-3 text-[12.5px] leading-6 text-ink/55">{review.comment}</p>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
       {isBookingOpen ? (
         <div className="fixed inset-0 z-[60] grid place-items-center bg-ink/50 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Book equipment">
           <form onSubmit={submitBooking} className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-[24px] bg-white p-5 shadow-2xl sm:p-7">
@@ -187,4 +240,32 @@ function Field({ label, name, children }: { label: string; name: string; childre
       </span>
     </label>
   );
+}
+
+function Stars({ rating }: { rating: number }) {
+  return (
+    <span className="flex items-center gap-0.5" aria-label={`${rating.toFixed(1)} out of 5 stars`}>
+      {[1, 2, 3, 4, 5].map((value) => (
+        <Star
+          key={value}
+          className={`size-3.5 ${value <= Math.round(rating) ? "fill-amber-400 text-amber-400" : "text-ink/20"}`}
+        />
+      ))}
+    </span>
+  );
+}
+
+function getInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "GG";
+}
+
+function formatReviewDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }

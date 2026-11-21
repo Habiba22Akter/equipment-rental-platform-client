@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { getEquipmentById } from "@/lib/equipment";
+import { getEquipmentById, getEquipmentReviews } from "@/lib/equipment";
 import { SiteHeader } from "@/components/site/site-header";
 import { EquipmentDetails } from "@/components/equipment/equipment-details";
 
@@ -19,10 +19,12 @@ export default async function EquipmentPage({
   const equipment = await getEquipmentById(id);
   if (!equipment) redirect("/#featured-equipment");
 
+  const reviews = await getEquipmentReviews(equipment.id);
+
   return (
     <div className="min-h-dvh bg-cream text-ink">
       <SiteHeader />
-      <EquipmentDetails equipment={equipment} />
+      <EquipmentDetails equipment={equipment} reviews={reviews} />
     </div>
   );
 }

@@ -382,7 +382,14 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
                 onRemove={(equipmentId) => setFavorites((items) => items.filter((item) => item.equipmentId !== equipmentId))}
               />
             ) : null}
-            {activeTab === "reviews" ? <EmptyState icon={Star} title="Your reviews" description="Reviews you leave after completed rentals will appear here." /> : null}
+            {activeTab === "reviews" ? (
+              <Reviews
+                role={role}
+                userId={user.id}
+                bookings={bookings}
+                bookingsLoaded={bookingsLoaded}
+              />
+            ) : null}
             {activeTab === "profile" ? <Profile user={user} /> : null}
             {activeTab === "listings" ? <OwnerEquipment /> : null}
             {activeTab === "approvals" ? <AdminApprovals /> : null}
@@ -1220,29 +1227,276 @@ function OwnerField({ label, name, children }: { label: string; name: string; ch
   );
 }
 
-function EmptyState({
-  icon: Icon,
-  title,
-  description,
+type ReviewRow = {
+  _id: string;
+  bookingId: string;
+  equipmentId: string;
+  equipmentName?: string;
+  ownerId?: string;
+  customerId: string;
+  customerName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+};
+
+function Reviews({
+  role,
+  userId,
+  bookings,
+  bookingsLoaded,
 }: {
-  icon: typeof Heart;
-  title: string;
-  description: string;
+  role: string;
+  userId?: string;
+  bookings: Booking[];
+  bookingsLoaded: boolean;
 }) {
+  const [reviews, setReviews] = useState<ReviewRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [reviewing, setReviewing] = useState<Booking | null>(null);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const query =
+      role === "Customer"
+        ? `?customerId=${encodeURIComponent(userId ?? "")}`
+        : role === "Owner"
+          ? `?ownerId=${encodeURIComponent(userId ?? "")}`
+          : "";
+
+    fetch(`/api/reviews${query}`, { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : { reviews: [] })
+      .then((data) => {
+        if (!cancelled) setReviews(data.reviews ?? []);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [role, userId]);
+
+  const reviewedBookings = new Set(reviews.map((review) => review.bookingId));
+  const awaitingReview = role === "Customer"
+    ? bookings.filter((booking) => booking.status === "completed" && !reviewedBookings.has(booking._id))
+    : [];
+
+  function openReview(booking: Booking) {
+    setReviewing(booking);
+    setRating(5);
+    setComment("");
+  }
+
+  async function submitReview(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!reviewing) return;
+
+    setSubmitting(true);
+    try {
+      const response = await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId: reviewing._id, rating, comment }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not save the review.");
+
+      setReviews((items) => [data.review as ReviewRow, ...items]);
+      setReviewing(null);
+      toast.success("Thanks for the review!");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save the review.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function deleteReview(id: string) {
+    setDeletingId(id);
+    try {
+      const response = await fetch(`/api/reviews/${id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not delete the review.");
+
+      setReviews((items) => items.filter((item) => item._id !== id));
+      toast.success("Review deleted.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete the review.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div>
-      <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Your space</p>
-      <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">{title}</h1>
-      <div className="mt-8 grid min-h-64 place-items-center rounded-2xl border border-dashed border-ink/15 bg-white p-8 text-center">
-        <div>
-          <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-cream text-ink/50">
-            <Icon className="size-5" />
-          </span>
-          <p className="mt-4 text-[14px] font-bold">{title} is empty</p>
-          <p className="mt-2 max-w-sm text-[12px] leading-5 text-ink/45">{description}</p>
+      <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Feedback</p>
+      <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">
+        {role === "Customer" ? "My Reviews" : role === "Owner" ? "Rental Reviews" : "All Reviews"}
+      </h1>
+      <p className="mt-2 text-[13px] text-ink/50">
+        {role === "Customer"
+          ? "Share how each completed rental went."
+          : role === "Owner"
+            ? "See what renters say about your equipment."
+            : "Review quality across the GearGrid marketplace."}
+      </p>
+
+      {role === "Customer" ? (
+        <div className="mt-8">
+          <h2 className="text-[14px] font-bold">Waiting for your review</h2>
+          {!bookingsLoaded ? (
+            <div className="mt-3 h-24 animate-pulse rounded-2xl bg-white" />
+          ) : awaitingReview.length === 0 ? (
+            <p className="mt-3 rounded-xl border border-dashed border-ink/15 bg-white p-4 text-[11.5px] text-ink/45">
+              Nothing to review right now. Completed rentals will show up here.
+            </p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {awaitingReview.map((booking) => (
+                <div key={booking._id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink/[0.08] bg-white p-3">
+                  <div className="flex items-center gap-3">
+                    {booking.equipment?.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={booking.equipment.imageUrl} alt="" className="size-11 rounded-lg object-cover" />
+                    ) : null}
+                    <div>
+                      <p className="text-[12px] font-bold">{booking.equipment?.name ?? "Equipment"}</p>
+                      <p className="text-[10px] text-ink/40">
+                        {formatDate(booking.startDate)} — {formatDate(booking.endDate)}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openReview(booking)}
+                    className="inline-flex h-9 items-center rounded-lg bg-ink px-3 text-[10.5px] font-semibold text-cream"
+                  >
+                    Leave a review
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      ) : null}
+
+      <Dialog open={Boolean(reviewing)} onOpenChange={(next) => { if (!next) setReviewing(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Review {reviewing?.equipment?.name ?? "your rental"}</DialogTitle>
+            <DialogDescription>Your feedback helps other renters choose with confidence.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={submitReview} className="grid gap-4 pt-2">
+            <div className="grid gap-2 text-[11px] font-bold text-ink/55">
+              Rating
+              <div className="flex items-center gap-1.5">
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setRating(value)}
+                    aria-label={`${value} star${value === 1 ? "" : "s"}`}
+                    className="rounded-md p-1"
+                  >
+                    <Star className={`size-6 ${value <= rating ? "fill-amber-400 text-amber-400" : "text-ink/20"}`} />
+                  </button>
+                ))}
+                <span className="ml-1 text-[11px] font-semibold text-ink/45">{rating}/5</span>
+              </div>
+            </div>
+            <label className="grid gap-2 text-[11px] font-bold text-ink/55" htmlFor="review-comment">
+              Comment (optional)
+              <textarea
+                id="review-comment"
+                rows={4}
+                maxLength={600}
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+                placeholder="Condition of the equipment, pickup experience, owner communication..."
+                className="w-full rounded-xl border border-ink/10 px-3 py-3 text-[12px] font-normal"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="h-11 rounded-xl bg-ink text-[12px] font-semibold text-cream disabled:opacity-50"
+            >
+              {submitting ? "Saving review..." : "Publish review"}
+            </button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {!loaded ? (
+        <div className="mt-6 h-40 animate-pulse rounded-2xl bg-white" />
+      ) : reviews.length === 0 ? (
+        <div className="mt-6 grid min-h-48 place-items-center rounded-2xl border border-dashed border-ink/15 bg-white p-8 text-center">
+          <div>
+            <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-cream text-ink/50">
+              <Star className="size-5" />
+            </span>
+            <p className="mt-4 text-[14px] font-bold">No reviews yet</p>
+            <p className="mt-2 text-[12px] text-ink/45">
+              {role === "Customer"
+                ? "Finish a rental, then share your experience."
+                : "Reviews will appear here as renters share feedback."}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-6 space-y-3">
+          {reviews.map((review) => (
+            <article key={review._id} className="rounded-2xl border border-ink/[0.08] bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[12.5px] font-bold">{review.equipmentName ?? "Equipment"}</p>
+                  <p className="mt-0.5 text-[10px] text-ink/40">
+                    {role === "Customer" ? "Your review" : review.customerName} · {formatDate(review.createdAt)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RatingStars rating={review.rating} />
+                  {role === "Admin" || role === "Customer" ? (
+                    <button
+                      type="button"
+                      disabled={deletingId === review._id}
+                      onClick={() => deleteReview(review._id)}
+                      className="grid size-8 place-items-center rounded-lg border border-ink/10 text-red-500 disabled:opacity-40"
+                      aria-label="Delete review"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              {review.comment ? (
+                <p className="mt-3 text-[12.5px] leading-6 text-ink/55">{review.comment}</p>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      )}
     </div>
+  );
+}
+
+function RatingStars({ rating }: { rating: number }) {
+  return (
+    <span className="flex items-center gap-0.5" aria-label={`${rating} out of 5 stars`}>
+      {[1, 2, 3, 4, 5].map((value) => (
+        <Star
+          key={value}
+          className={`size-3.5 ${value <= Math.round(rating) ? "fill-amber-400 text-amber-400" : "text-ink/20"}`}
+        />
+      ))}
+    </span>
   );
 }
 

@@ -1,4 +1,5 @@
 import { MongoClient, ObjectId, type Sort } from "mongodb";
+import { connection } from "next/server";
 
 export type FeaturedEquipment = {
   id: string;
@@ -28,6 +29,14 @@ export type EquipmentFilters = {
   category?: string;
   sort?: "newest" | "price-asc" | "price-desc";
   limit?: number;
+};
+
+export type EquipmentReview = {
+  id: string;
+  rating: number;
+  comment: string;
+  customerName: string;
+  createdAt: string;
 };
 
 type EquipmentDocument = {
@@ -101,6 +110,7 @@ function escapeRegex(value: string) {
 }
 
 export async function getFeaturedEquipment() {
+  await connection();
   const client = getMongoClient();
   const database = client.db(process.env.DB_NAME ?? "equipment-rental-platform");
 
@@ -128,6 +138,7 @@ export async function getFeaturedEquipment() {
 }
 
 export async function getEquipmentList(filters: EquipmentFilters = {}) {
+  await connection();
   const client = getMongoClient();
   const database = client.db(process.env.DB_NAME ?? "equipment-rental-platform");
   const conditions: Record<string, unknown>[] = [
@@ -169,6 +180,7 @@ export async function getEquipmentList(filters: EquipmentFilters = {}) {
 }
 
 export async function getEquipmentCategories() {
+  await connection();
   const client = getMongoClient();
   const database = client.db(process.env.DB_NAME ?? "equipment-rental-platform");
   const categories = await database
@@ -185,6 +197,7 @@ export async function getEquipmentCategories() {
 export async function getEquipmentById(id: string) {
   if (!ObjectId.isValid(id)) return null;
 
+  await connection();
   const client = getMongoClient();
   const database = client.db(process.env.DB_NAME ?? "equipment-rental-platform");
   const item = await database
@@ -225,4 +238,34 @@ export async function getEquipmentById(id: string) {
       email: asString(item.ownerEmail, ""),
     },
   } satisfies EquipmentDetails;
+}
+
+export async function getEquipmentReviews(equipmentId: string) {
+  if (!ObjectId.isValid(equipmentId)) return [];
+
+  await connection();
+  const client = getMongoClient();
+  const database = client.db(process.env.DB_NAME ?? "equipment-rental-platform");
+  const reviews = await database
+    .collection("reviews")
+    .find({ equipmentId })
+    .sort({ createdAt: -1 })
+    .limit(20)
+    .toArray();
+
+  return reviews.map((review) => ({
+    id: review._id.toString(),
+    rating: typeof review.rating === "number" ? review.rating : 0,
+    comment: typeof review.comment === "string" ? review.comment : "",
+    customerName:
+      typeof review.customerName === "string" && review.customerName
+        ? review.customerName
+        : "GearGrid customer",
+    createdAt:
+      review.createdAt instanceof Date
+        ? review.createdAt.toISOString()
+        : typeof review.createdAt === "string"
+          ? review.createdAt
+          : new Date().toISOString(),
+  })) satisfies EquipmentReview[];
 }
