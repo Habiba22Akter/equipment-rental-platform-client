@@ -448,7 +448,7 @@ function Overview({
           </p>
         </div>
         <Link
-          href="/#featured-equipment"
+          href="/equipment"
           className="inline-flex h-10 items-center justify-center rounded-xl bg-ink px-4 text-[12px] font-semibold text-cream transition hover:bg-ink-soft"
         >
           Browse equipment
@@ -661,7 +661,7 @@ function FavoriteEquipment({
             <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-cream text-ink/50"><Heart className="size-5" /></span>
             <p className="mt-4 text-[14px] font-bold">No favorite equipment yet</p>
             <p className="mt-2 text-[12px] text-ink/45">Open an equipment detail page and save it for later.</p>
-            <Link href="/#featured-equipment" className="mt-5 inline-flex h-10 items-center rounded-xl bg-ink px-4 text-[11px] font-semibold text-cream">Browse equipment</Link>
+            <Link href="/equipment" className="mt-5 inline-flex h-10 items-center rounded-xl bg-ink px-4 text-[11px] font-semibold text-cream">Browse equipment</Link>
           </div>
         </div>
       ) : (

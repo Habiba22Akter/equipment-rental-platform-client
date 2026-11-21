@@ -12,7 +12,7 @@ import { normalizeRole } from "@/lib/roles";
 
 const navigation = [
   { href: "/", label: "Home" },
-  { href: "/#categories", label: "All Equipment" },
+  { href: "/equipment", label: "All Equipment" },
   { href: "/#how-it-works", label: "How it works" },
 ];
 
