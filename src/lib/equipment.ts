@@ -10,6 +10,19 @@ export type FeaturedEquipment = {
   dailyRate: number;
 };
 
+export type EquipmentDetails = FeaturedEquipment & {
+  rentalType: "Daily" | "Weekly" | "Monthly";
+  weeklyRate: number;
+  monthlyRate: number;
+  availableQuantity: number;
+  terms: string;
+  owner: {
+    id: string;
+    name: string;
+    email: string;
+  };
+};
+
 type EquipmentDocument = {
   _id: ObjectId;
   name?: unknown;
@@ -20,6 +33,16 @@ type EquipmentDocument = {
   image?: unknown;
   dailyRate?: unknown;
   pricePerDay?: unknown;
+  rentalType?: unknown;
+  weeklyRate?: unknown;
+  monthlyRate?: unknown;
+  availableQuantity?: unknown;
+  quantity?: unknown;
+  terms?: unknown;
+  rentalTerms?: unknown;
+  ownerId?: unknown;
+  ownerName?: unknown;
+  ownerEmail?: unknown;
 };
 
 const globalForMongo = globalThis as typeof globalThis & {
@@ -76,4 +99,49 @@ export async function getFeaturedEquipment() {
     ),
     dailyRate: asNumber(item.dailyRate ?? item.pricePerDay),
   })) satisfies FeaturedEquipment[];
+}
+
+export async function getEquipmentById(id: string) {
+  if (!ObjectId.isValid(id)) return null;
+
+  const client = getMongoClient();
+  const database = client.db(process.env.DB_NAME ?? "equipment-rental-platform");
+  const item = await database
+    .collection<EquipmentDocument>("equipment")
+    .findOne({ _id: new ObjectId(id) });
+
+  if (!item) return null;
+
+  const rentalTypeValue = asString(item.rentalType, "Daily");
+  const rentalType =
+    rentalTypeValue === "Weekly" || rentalTypeValue === "Monthly"
+      ? rentalTypeValue
+      : "Daily";
+  const dailyRate = asNumber(item.dailyRate ?? item.pricePerDay);
+
+  return {
+    id: item._id.toString(),
+    name: asString(item.name, "Unnamed equipment"),
+    description: asString(item.description, "Reliable equipment for your next project."),
+    category: asString(item.category, "Equipment"),
+    location: asString(item.location, "Location unavailable"),
+    imageUrl: asString(
+      item.imageUrl ?? item.image,
+      "https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&w=900&q=85",
+    ),
+    dailyRate,
+    rentalType,
+    weeklyRate: asNumber(item.weeklyRate) || dailyRate * 7,
+    monthlyRate: asNumber(item.monthlyRate) || dailyRate * 30,
+    availableQuantity: asNumber(item.availableQuantity ?? item.quantity) || 1,
+    terms: asString(
+      item.terms ?? item.rentalTerms,
+      "Return the equipment clean and on time. The renter is responsible for accidental damage during the rental period.",
+    ),
+    owner: {
+      id: asString(item.ownerId, ""),
+      name: asString(item.ownerName, "Verified owner"),
+      email: asString(item.ownerEmail, ""),
+    },
+  } satisfies EquipmentDetails;
 }

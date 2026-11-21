@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -23,10 +23,28 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import { normalizeRole } from "@/lib/roles";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type DashboardUser = {
+  id?: string;
   name: string;
   email: string;
   image?: string | null;
@@ -111,10 +129,20 @@ export function DashboardShell({ user }: DashboardShellProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [favorites, setFavorites] = useState<Array<{ equipmentId: string; name: string; imageUrl: string; category: string; dailyRate: number; location: string }>>([]);
+  const [favoritesLoaded, setFavoritesLoaded] = useState(false);
 
   const initials = getInitials(user.name);
   const role = normalizeRole(user.role);
   const navigation = getNavigation(role);
+
+  useEffect(() => {
+    if (role !== "Customer") return;
+    fetch("/api/customer/favorites")
+      .then((response) => response.ok ? response.json() : { favorites: [] })
+      .then((data) => setFavorites(data.favorites ?? []))
+      .finally(() => setFavoritesLoaded(true));
+  }, [role]);
 
   function selectTab(tab: DashboardTab) {
     setActiveTab(tab);
@@ -257,10 +285,16 @@ export function DashboardShell({ user }: DashboardShellProps) {
           >
             {activeTab === "overview" ? <Overview userName={user.name} role={role} /> : null}
             {activeTab === "bookings" ? <Bookings /> : null}
-            {activeTab === "favorites" ? <EmptyState icon={Heart} title="Your favorite equipment" description="Save equipment you want to compare or rent later." /> : null}
+            {activeTab === "favorites" ? (
+              <FavoriteEquipment
+                favorites={favorites}
+                loaded={favoritesLoaded}
+                onRemove={(equipmentId) => setFavorites((items) => items.filter((item) => item.equipmentId !== equipmentId))}
+              />
+            ) : null}
             {activeTab === "reviews" ? <EmptyState icon={Star} title="Your reviews" description="Reviews you leave after completed rentals will appear here." /> : null}
             {activeTab === "profile" ? <Profile user={user} /> : null}
-            {activeTab === "listings" ? <EmptyState icon={PackagePlus} title="My equipment listings" description="Create and manage the equipment you rent out to customers." /> : null}
+            {activeTab === "listings" ? <OwnerEquipment user={user} /> : null}
             {activeTab === "approvals" ? <EmptyState icon={ClipboardCheck} title="Equipment approvals" description="Review newly submitted equipment listings and approve or reject them." /> : null}
             {activeTab === "users" ? <EmptyState icon={Users} title="Manage users" description="Review customers and owners from the GearGrid user directory." /> : null}
             {activeTab === "payments" ? <EmptyState icon={DollarSign} title="Payments" description="Track completed, pending and refunded rental payments." /> : null}
@@ -391,6 +425,254 @@ function StatCard({ label, value, note }: { label: string; value: string; note: 
       <p className="mt-2 text-[2rem] font-bold tracking-[-0.06em]">{value}</p>
       <p className="mt-1 text-[10px] text-ink/35">{note}</p>
     </div>
+  );
+}
+
+function FavoriteEquipment({
+  favorites,
+  loaded,
+  onRemove,
+}: {
+  favorites: Array<{ equipmentId: string; name: string; imageUrl: string; category: string; dailyRate: number; location: string }>;
+  loaded: boolean;
+  onRemove: (equipmentId: string) => void;
+}) {
+  async function removeFavorite(equipmentId: string) {
+    await fetch("/api/favorites", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ equipmentId }),
+    });
+    onRemove(equipmentId);
+  }
+
+  return (
+    <div>
+      <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Saved for later</p>
+      <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">My Favorites</h1>
+      {!loaded ? (
+        <div className="mt-8 h-64 animate-pulse rounded-2xl bg-white" />
+      ) : favorites.length === 0 ? (
+        <div className="mt-8 grid min-h-64 place-items-center rounded-2xl border border-dashed border-ink/15 bg-white p-8 text-center">
+          <div>
+            <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-cream text-ink/50"><Heart className="size-5" /></span>
+            <p className="mt-4 text-[14px] font-bold">No favorite equipment yet</p>
+            <p className="mt-2 text-[12px] text-ink/45">Open an equipment detail page and save it for later.</p>
+            <Link href="/#featured-equipment" className="mt-5 inline-flex h-10 items-center rounded-xl bg-ink px-4 text-[11px] font-semibold text-cream">Browse equipment</Link>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          {favorites.map((item) => (
+            <div key={item.equipmentId} className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-white">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={item.imageUrl} alt={item.name} className="h-44 w-full object-cover" />
+              <div className="p-4">
+                <p className="text-[9px] font-bold tracking-[0.12em] text-ink/35 uppercase">{item.category}</p>
+                <h2 className="mt-1 text-[14px] font-bold">{item.name}</h2>
+                <p className="mt-2 text-[11px] text-ink/45">{item.location}</p>
+                <div className="mt-4 flex items-center justify-between">
+                  <p className="text-[14px] font-bold">${item.dailyRate}<span className="text-[10px] font-normal text-ink/40">/day</span></p>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => removeFavorite(item.equipmentId)} className="grid size-9 place-items-center rounded-lg border border-ink/10 text-red-500" aria-label="Remove favorite"><Heart className="size-4 fill-current" /></button>
+                    <Link href={`/equipment/${item.equipmentId}`} className="inline-flex h-9 items-center rounded-lg bg-ink px-3 text-[10px] font-semibold text-cream">View</Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OwnerEquipment({ user }: { user: DashboardUser }) {
+  type EquipmentRow = {
+    _id: string;
+    name: string;
+    category: string;
+    location: string;
+    imageUrl?: string;
+    image?: string;
+    dailyRate?: number;
+    availableQuantity?: number;
+    quantity?: number;
+    status?: string;
+    approvalStatus?: string;
+    ownerId?: string;
+  };
+
+  const [equipment, setEquipment] = useState<EquipmentRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function loadEquipment() {
+    setLoaded(false);
+    const response = await fetch("/api/owner/equipments", { cache: "no-store" });
+    const data = await response.json();
+    setEquipment(response.ok ? data.equipment ?? [] : []);
+    setLoaded(true);
+  }
+
+  useEffect(() => {
+    void loadEquipment();
+  }, []);
+
+  async function uploadImage(file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch("/api/upload", { method: "POST", body: form });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not upload image.");
+    return data.url as string;
+  }
+
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const file = formData.get("image");
+
+    try {
+      let imageUrl = String(formData.get("imageUrl") ?? "").trim();
+      if (file instanceof File && file.size > 0) imageUrl = await uploadImage(file);
+      if (!imageUrl) throw new Error("Add an equipment image.");
+
+      const response = await fetch("/api/owner/equipments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.get("name"),
+          description: formData.get("description"),
+          category: formData.get("category"),
+          location: formData.get("location"),
+          imageUrl,
+          dailyRate: Number(formData.get("dailyRate")),
+          weeklyRate: Number(formData.get("weeklyRate")) || undefined,
+          monthlyRate: Number(formData.get("monthlyRate")) || undefined,
+          rentalType: formData.get("rentalType"),
+          availableQuantity: Number(formData.get("availableQuantity")),
+          terms: formData.get("terms"),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not add equipment.");
+
+      toast.success("Equipment submitted.", { description: "It is waiting for admin approval." });
+      form.reset();
+      setOpen(false);
+      await loadEquipment();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not add equipment.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+        <div>
+          <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Inventory</p>
+          <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">My Equipment</h1>
+          <p className="mt-2 text-[13px] text-ink/50">Create listings and track approval status.</p>
+        </div>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger
+            render={
+              <button type="button" className="inline-flex h-10 items-center gap-2 rounded-xl bg-ink px-4 text-[12px] font-semibold text-cream">
+                <PackagePlus className="size-4" /> Add equipment
+              </button>
+            }
+          />
+          <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Add equipment</DialogTitle>
+              <DialogDescription>Create a listing for customers to rent. It will remain pending until approved.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreate} className="grid gap-4 pt-2 sm:grid-cols-2">
+              <OwnerField label="Equipment name" name="name"><input required name="name" placeholder="Excavator, camera, drill..." /></OwnerField>
+              <OwnerField label="Category" name="category"><input required name="category" placeholder="Construction Equipment" /></OwnerField>
+              <div className="sm:col-span-2"><OwnerField label="Description" name="description"><textarea required name="description" rows={3} placeholder="Describe the equipment, condition and included accessories." /></OwnerField></div>
+              <OwnerField label="Location" name="location"><input required name="location" placeholder="Chattogram, Bangladesh" /></OwnerField>
+              <OwnerField label="Rental type" name="rentalType">
+                <select required name="rentalType" defaultValue="Daily">
+                  <option>Daily</option><option>Weekly</option><option>Monthly</option>
+                </select>
+              </OwnerField>
+              <OwnerField label="Daily price" name="dailyRate"><input required name="dailyRate" type="number" min="1" step="0.01" placeholder="50" /></OwnerField>
+              <OwnerField label="Available quantity" name="availableQuantity"><input required name="availableQuantity" type="number" min="1" step="1" defaultValue="1" /></OwnerField>
+              <OwnerField label="Weekly price (optional)" name="weeklyRate"><input name="weeklyRate" type="number" min="1" step="0.01" placeholder="300" /></OwnerField>
+              <OwnerField label="Monthly price (optional)" name="monthlyRate"><input name="monthlyRate" type="number" min="1" step="0.01" placeholder="1200" /></OwnerField>
+              <div className="sm:col-span-2"><OwnerField label="Rental terms" name="terms"><textarea name="terms" rows={2} placeholder="Pickup, damage policy, late return..." /></OwnerField></div>
+              <div className="sm:col-span-2"><OwnerField label="Image URL (or upload below)" name="imageUrl"><input name="imageUrl" type="url" placeholder="https://..." /></OwnerField></div>
+              <div className="sm:col-span-2"><OwnerField label="Upload image" name="image"><input name="image" type="file" accept="image/*" /></OwnerField></div>
+              <button disabled={submitting} type="submit" className="sm:col-span-2 h-11 rounded-xl bg-ink text-[12px] font-semibold text-cream disabled:opacity-50">
+                {submitting ? "Adding equipment..." : "Add equipment"}
+              </button>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {!loaded ? (
+        <div className="mt-8 h-64 animate-pulse rounded-2xl bg-white" />
+      ) : equipment.length === 0 ? (
+        <div className="mt-8 grid min-h-64 place-items-center rounded-2xl border border-dashed border-ink/15 bg-white p-8 text-center">
+          <div>
+            <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-cream text-ink/50"><PackagePlus className="size-5" /></span>
+            <p className="mt-4 text-[14px] font-bold">No equipment listings yet</p>
+            <p className="mt-2 text-[12px] text-ink/45">Add your first equipment to start receiving rental requests.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-8 overflow-hidden rounded-2xl border border-ink/[0.08] bg-white">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Equipment</TableHead><TableHead>Category</TableHead><TableHead>Location</TableHead><TableHead>Price</TableHead><TableHead>Quantity</TableHead><TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {equipment.map((item) => (
+                <TableRow key={item._id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={item.imageUrl ?? item.image ?? ""} alt="" className="size-12 rounded-xl object-cover" />
+                      <span className="font-bold">{item.name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{item.category}</TableCell>
+                  <TableCell>{item.location}</TableCell>
+                  <TableCell>${Number(item.dailyRate ?? 0).toFixed(2)} / day</TableCell>
+                  <TableCell>{item.availableQuantity ?? item.quantity ?? 1}</TableCell>
+                  <TableCell>
+                    <span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${(item.status ?? item.approvalStatus) === "approved" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                      {item.status ?? item.approvalStatus ?? "pending"}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OwnerField({ label, name, children }: { label: string; name: string; children: ReactNode }) {
+  return (
+    <label className="grid gap-2 text-[11px] font-bold text-ink/55" htmlFor={name}>
+      {label}
+      <span className="[&_input]:h-11 [&_input]:w-full [&_input]:rounded-xl [&_input]:border [&_input]:border-ink/10 [&_input]:px-3 [&_input]:text-[12px] [&_select]:h-11 [&_select]:w-full [&_select]:rounded-xl [&_select]:border [&_select]:border-ink/10 [&_select]:px-3 [&_select]:text-[12px] [&_textarea]:w-full [&_textarea]:rounded-xl [&_textarea]:border [&_textarea]:border-ink/10 [&_textarea]:px-3 [&_textarea]:py-3 [&_textarea]:text-[12px]">
+        {children}
+      </span>
+    </label>
   );
 }
 

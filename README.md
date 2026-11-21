@@ -92,6 +92,8 @@ GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 
 IMGBB_API_KEY=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
 ```
 
 `BETTER_AUTH_SECRET` should be a long random string. On macOS/Linux you can generate one with:
