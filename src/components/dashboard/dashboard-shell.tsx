@@ -619,6 +619,73 @@ function Bookings({
               </TableBody>
             </Table>
           </div>
+        ) : role === "Owner" ? (
+          <div className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-white">
+            <Table>
+              <TableCaption className="px-4 pb-4 text-left text-[10px] text-ink/40">
+                Rentals booked for equipment you own.
+              </TableCaption>
+              <TableHeader>
+                <TableRow className="bg-cream/70 hover:bg-cream/70">
+                  <TableHead className="px-4 text-[10px] font-bold text-ink/55">Customer Information</TableHead>
+                  <TableHead className="text-[10px] font-bold text-ink/55">Equipment Information</TableHead>
+                  <TableHead className="text-[10px] font-bold text-ink/55">Rental Duration</TableHead>
+                  <TableHead className="text-right text-[10px] font-bold text-ink/55">Required Quantity</TableHead>
+                  <TableHead className="text-right text-[10px] font-bold text-ink/55">Booking Amount</TableHead>
+                  <TableHead className="text-[10px] font-bold text-ink/55">Payment Status</TableHead>
+                  <TableHead className="px-4 text-[10px] font-bold text-ink/55">Booking Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {bookings.map((booking) => (
+                  <TableRow key={booking._id}>
+                    <TableCell className="max-w-48 px-4">
+                      <p className="truncate text-[11px] font-semibold text-ink">{booking.customerName ?? "Customer"}</p>
+                      <p className="mt-1 truncate text-[10px] text-ink/45">{booking.customerEmail ?? "Email unavailable"}</p>
+                    </TableCell>
+                    <TableCell className="max-w-52">
+                      <div className="flex min-w-40 items-center gap-2.5">
+                        {booking.equipment?.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={booking.equipment.imageUrl} alt="" className="size-10 shrink-0 rounded-lg object-cover" />
+                        ) : (
+                          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-cream text-ink/40"><Package className="size-4" /></span>
+                        )}
+                        <div className="min-w-0">
+                          <p className="truncate text-[11px] font-semibold">{booking.equipment?.name ?? "Equipment"}</p>
+                          <p className="mt-1 truncate text-[9px] text-ink/45">{booking.equipment?.category ?? "Equipment"}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-[10px] leading-5 text-ink/60">
+                      <span className="block">From {formatDate(booking.startDate)}</span>
+                      <span className="block">To {formatDate(booking.endDate)}</span>
+                    </TableCell>
+                    <TableCell className="text-right text-[11px] font-semibold">{booking.quantity}</TableCell>
+                    <TableCell className="text-right text-[11px] font-bold">{money(booking.totalAmount)}</TableCell>
+                    <TableCell>
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-semibold capitalize ${booking.paymentStatus === "paid" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                        {booking.paymentStatus ?? "pending"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="px-4">
+                      <select
+                        value={booking.status}
+                        onChange={(event) => onStatusChange(booking._id, event.target.value)}
+                        className="h-8 rounded-lg border border-ink/10 bg-white px-2 text-[10px] font-semibold capitalize text-ink/70"
+                        aria-label={`Booking status for ${booking.equipment?.name ?? "equipment"}`}
+                      >
+                        <option value="confirmed">Confirmed</option>
+                        <option value="active">Active</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         ) : (
           bookings.map((booking) => (
             <BookingRow
