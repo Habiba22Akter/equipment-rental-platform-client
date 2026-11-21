@@ -17,8 +17,10 @@ import {
   MessageSquareText,
   Package,
   PackagePlus,
+  Pencil,
   Settings,
   Star,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
@@ -73,6 +75,71 @@ type DashboardNavigation = {
   icon: typeof LayoutDashboard;
 };
 
+type Booking = {
+  _id: string;
+  equipmentId: string;
+  customerId?: string;
+  customerName?: string;
+  customerEmail?: string;
+  startDate: string;
+  endDate: string;
+  quantity: number;
+  totalAmount: number;
+  status: string;
+  paymentStatus?: string;
+  equipment?: {
+    name: string;
+    imageUrl: string;
+    category: string;
+    location: string;
+    ownerId: string;
+    ownerName: string;
+  } | null;
+};
+
+type EquipmentRow = {
+  _id: string;
+  name: string;
+  description?: string;
+  category: string;
+  location: string;
+  imageUrl?: string;
+  image?: string;
+  dailyRate?: number;
+  weeklyRate?: number;
+  monthlyRate?: number;
+  rentalType?: string;
+  availableQuantity?: number;
+  quantity?: number;
+  terms?: string;
+  status?: string;
+  approvalStatus?: string;
+  ownerId?: string;
+  ownerName?: string;
+};
+
+type AdminUser = {
+  _id: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  image?: string;
+  createdAt?: string;
+};
+
+const BOOKING_BADGE: Record<string, string> = {
+  confirmed: "bg-emerald-50 text-emerald-700",
+  active: "bg-sky-50 text-sky-700",
+  completed: "bg-ink/[0.06] text-ink/60",
+  cancelled: "bg-red-50 text-red-600",
+};
+
+const APPROVAL_BADGE: Record<string, string> = {
+  approved: "bg-emerald-50 text-emerald-700",
+  pending: "bg-amber-50 text-amber-700",
+  rejected: "bg-red-50 text-red-600",
+};
+
 function getNavigation(role: string): DashboardNavigation[] {
   if (role === "Owner") {
     return [
@@ -105,33 +172,14 @@ function getNavigation(role: string): DashboardNavigation[] {
   ];
 }
 
-const recentBookings = [
-  {
-    name: "Makita Rotary Hammer",
-    category: "Power tools",
-    dates: "Nov 24 — Nov 27, 2026",
-    status: "Confirmed",
-    price: "$72",
-    image:
-      "https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&w=240&q=80",
-  },
-  {
-    name: "Canon Cinema Camera",
-    category: "Photography",
-    dates: "Dec 02 — Dec 04, 2026",
-    status: "Pending",
-    price: "$180",
-    image:
-      "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=240&q=80",
-  },
-];
-
 export function DashboardShell({ user, initialTab = "overview" }: DashboardShellProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<DashboardTab>(initialTab);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [favorites, setFavorites] = useState<Array<{ equipmentId: string; name: string; imageUrl: string; category: string; dailyRate: number; location: string }>>([]);
   const [favoritesLoaded, setFavoritesLoaded] = useState(false);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingsLoaded, setBookingsLoaded] = useState(false);
 
   const initials = getInitials(user.name);
   const role = normalizeRole(user.role);
@@ -145,6 +193,13 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
       .finally(() => setFavoritesLoaded(true));
   }, [role]);
 
+  useEffect(() => {
+    fetch("/api/bookings")
+      .then((response) => response.ok ? response.json() : { bookings: [] })
+      .then((data) => setBookings(data.bookings ?? []))
+      .finally(() => setBookingsLoaded(true));
+  }, []);
+
   function selectTab(tab: DashboardTab) {
     setActiveTab(tab);
     setIsSidebarOpen(false);
@@ -154,6 +209,25 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
     await authClient.signOut();
     router.push("/");
     router.refresh();
+  }
+
+  async function updateBookingStatus(bookingId: string, status: string) {
+    const response = await fetch(`/api/bookings/${bookingId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      toast.error(data.error ?? "Could not update the booking.");
+      return;
+    }
+
+    setBookings((items) =>
+      items.map((item) => item._id === bookingId ? { ...item, status } : item),
+    );
+    toast.success(`Booking marked ${status}.`);
   }
 
   return (
@@ -284,8 +358,23 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
             transition={{ duration: 0.25 }}
             className="mx-auto max-w-[1120px] px-5 py-8 sm:px-8 lg:px-10 lg:py-12"
           >
-            {activeTab === "overview" ? <Overview userName={user.name} role={role} /> : null}
-            {activeTab === "bookings" ? <Bookings /> : null}
+            {activeTab === "overview" ? (
+              <Overview
+                userName={user.name}
+                role={role}
+                bookings={bookings}
+                bookingsLoaded={bookingsLoaded}
+                savedCount={favorites.length}
+              />
+            ) : null}
+            {activeTab === "bookings" ? (
+              <Bookings
+                role={role}
+                bookings={bookings}
+                loaded={bookingsLoaded}
+                onStatusChange={updateBookingStatus}
+              />
+            ) : null}
             {activeTab === "favorites" ? (
               <FavoriteEquipment
                 favorites={favorites}
@@ -295,10 +384,10 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
             ) : null}
             {activeTab === "reviews" ? <EmptyState icon={Star} title="Your reviews" description="Reviews you leave after completed rentals will appear here." /> : null}
             {activeTab === "profile" ? <Profile user={user} /> : null}
-            {activeTab === "listings" ? <OwnerEquipment user={user} /> : null}
-            {activeTab === "approvals" ? <EmptyState icon={ClipboardCheck} title="Equipment approvals" description="Review newly submitted equipment listings and approve or reject them." /> : null}
-            {activeTab === "users" ? <EmptyState icon={Users} title="Manage users" description="Review customers and owners from the GearGrid user directory." /> : null}
-            {activeTab === "payments" ? <EmptyState icon={DollarSign} title="Payments" description="Track completed, pending and refunded rental payments." /> : null}
+            {activeTab === "listings" ? <OwnerEquipment /> : null}
+            {activeTab === "approvals" ? <AdminApprovals /> : null}
+            {activeTab === "users" ? <AdminUsers currentUserId={user.id} /> : null}
+            {activeTab === "payments" ? <Payments role={role} bookings={bookings} loaded={bookingsLoaded} /> : null}
           </motion.div>
         </main>
       </div>
@@ -306,24 +395,42 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
   );
 }
 
-function Overview({ userName, role }: { userName: string; role: string }) {
+function Overview({
+  userName,
+  role,
+  bookings,
+  bookingsLoaded,
+  savedCount,
+}: {
+  userName: string;
+  role: string;
+  bookings: Booking[];
+  bookingsLoaded: boolean;
+  savedCount: number;
+}) {
+  const active = bookings.filter((booking) => booking.status === "confirmed" || booking.status === "active").length;
+  const completed = bookings.filter((booking) => booking.status === "completed").length;
+  const revenue = bookings
+    .filter((booking) => booking.paymentStatus === "paid")
+    .reduce((sum, booking) => sum + Number(booking.totalAmount ?? 0), 0);
+
   const stats =
     role === "Admin"
       ? [
-          { label: "Total users", value: "248", note: "Customers and owners" },
-          { label: "Pending approvals", value: "12", note: "Equipment listings" },
-          { label: "Active bookings", value: "34", note: "Across the marketplace" },
+          { label: "Total bookings", value: bookingsLoaded ? String(bookings.length) : "—", note: "Across the marketplace" },
+          { label: "Active bookings", value: bookingsLoaded ? String(active) : "—", note: "Confirmed or running" },
+          { label: "Rental revenue", value: bookingsLoaded ? money(revenue) : "—", note: "Paid bookings" },
         ]
       : role === "Owner"
         ? [
-            { label: "Active listings", value: "6", note: "Approved equipment" },
-            { label: "Rental requests", value: "4", note: "Awaiting a response" },
-            { label: "Monthly earnings", value: "$840", note: "Completed payments" },
+            { label: "Rental requests", value: bookingsLoaded ? String(bookings.length) : "—", note: "All incoming bookings" },
+            { label: "Active rentals", value: bookingsLoaded ? String(active) : "—", note: "Confirmed or running" },
+            { label: "Monthly earnings", value: bookingsLoaded ? money(revenue) : "—", note: "Completed payments" },
           ]
         : [
-            { label: "Active rentals", value: "2", note: "Currently booked" },
-            { label: "Completed rentals", value: "8", note: "Since joining GearGrid" },
-            { label: "Saved equipment", value: "5", note: "Ready to compare" },
+            { label: "Active rentals", value: bookingsLoaded ? String(active) : "—", note: "Currently booked" },
+            { label: "Completed rentals", value: bookingsLoaded ? String(completed) : "—", note: "Since joining GearGrid" },
+            { label: "Saved equipment", value: String(savedCount), note: "Ready to compare" },
           ];
 
   return (
@@ -357,31 +464,86 @@ function Overview({ userName, role }: { userName: string; role: string }) {
       <div className="mt-8 rounded-2xl border border-ink/[0.08] bg-white p-5 sm:p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-[15px] font-bold">Recent bookings</h2>
+            <h2 className="text-[15px] font-bold">
+              {role === "Customer" ? "Recent bookings" : role === "Owner" ? "Latest rental requests" : "Latest bookings"}
+            </h2>
             <p className="mt-1 text-[11px] text-ink/40">Your latest equipment reservations</p>
           </div>
-          <span className="rounded-full bg-lime/40 px-3 py-1.5 text-[10px] font-bold text-ink">2 active</span>
+          <span className="rounded-full bg-lime/40 px-3 py-1.5 text-[10px] font-bold text-ink">
+            {active} active
+          </span>
         </div>
         <div className="mt-5 space-y-3">
-          {recentBookings.map((booking) => (
-            <BookingRow key={booking.name} booking={booking} />
-          ))}
+          {!bookingsLoaded ? (
+            <div className="h-24 animate-pulse rounded-xl bg-cream" />
+          ) : bookings.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-ink/15 p-6 text-center text-[12px] text-ink/45">
+              No bookings yet. Your reservations will appear here.
+            </p>
+          ) : (
+            bookings.slice(0, 2).map((booking) => (
+              <BookingRow key={booking._id} booking={booking} role={role} />
+            ))
+          )}
         </div>
       </div>
     </>
   );
 }
 
-function Bookings() {
+function Bookings({
+  role,
+  bookings,
+  loaded,
+  onStatusChange,
+}: {
+  role: string;
+  bookings: Booking[];
+  loaded: boolean;
+  onStatusChange: (bookingId: string, status: string) => void;
+}) {
   return (
     <>
-      <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Rental history</p>
-      <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">My Bookings</h1>
-      <p className="mt-2 text-[13px] text-ink/50">Track, manage and review your equipment reservations.</p>
+      <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">
+        {role === "Customer" ? "Rental history" : "Marketplace bookings"}
+      </p>
+      <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">
+        {role === "Customer" ? "My Bookings" : role === "Owner" ? "Rental Requests" : "All Bookings"}
+      </h1>
+      <p className="mt-2 text-[13px] text-ink/50">
+        {role === "Customer"
+          ? "Track, manage and review your equipment reservations."
+          : "Follow every rental from confirmation through completion."}
+      </p>
+
       <div className="mt-8 space-y-3">
-        {recentBookings.map((booking) => (
-          <BookingRow key={booking.name} booking={booking} detailed />
-        ))}
+        {!loaded ? (
+          <div className="h-64 animate-pulse rounded-2xl bg-white" />
+        ) : bookings.length === 0 ? (
+          <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-ink/15 bg-white p-8 text-center">
+            <div>
+              <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-cream text-ink/50">
+                <CalendarDays className="size-5" />
+              </span>
+              <p className="mt-4 text-[14px] font-bold">No bookings yet</p>
+              <p className="mt-2 text-[12px] text-ink/45">
+                {role === "Customer"
+                  ? "Book equipment from the marketplace and it will show up here."
+                  : "Customer bookings for your equipment will appear here."}
+              </p>
+            </div>
+          </div>
+        ) : (
+          bookings.map((booking) => (
+            <BookingRow
+              key={booking._id}
+              booking={booking}
+              role={role}
+              detailed
+              onStatusChange={onStatusChange}
+            />
+          ))
+        )}
       </div>
     </>
   );
@@ -389,29 +551,69 @@ function Bookings() {
 
 function BookingRow({
   booking,
+  role,
   detailed = false,
+  onStatusChange,
 }: {
-  booking: (typeof recentBookings)[number];
+  booking: Booking;
+  role: string;
   detailed?: boolean;
+  onStatusChange?: (bookingId: string, status: string) => void;
 }) {
+  const equipment = booking.equipment;
+  const canManage = role === "Owner" || role === "Admin";
+
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-ink/[0.08] p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+    <div className="flex flex-col gap-4 rounded-xl border border-ink/[0.08] bg-white p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
       <div className="flex min-w-0 items-center gap-3">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={booking.image} alt="" className="size-14 shrink-0 rounded-xl object-cover" />
-        <div className="min-w-0">
-          <p className="truncate text-[13px] font-bold">{booking.name}</p>
-          <p className="mt-1 text-[10.5px] text-ink/40">{booking.category} · {booking.dates}</p>
-          <span className="mt-2 inline-flex rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-700">
-            {booking.status}
+        {equipment?.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={equipment.imageUrl} alt="" className="size-14 shrink-0 rounded-xl object-cover" />
+        ) : (
+          <span className="grid size-14 shrink-0 place-items-center rounded-xl bg-cream text-ink/40">
+            <Package className="size-5" />
           </span>
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-[13px] font-bold">{equipment?.name ?? "Equipment"}</p>
+          <p className="mt-1 text-[10.5px] text-ink/40">
+            {formatDate(booking.startDate)} — {formatDate(booking.endDate)} · Qty {booking.quantity}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className={`inline-flex rounded-full px-2 py-1 text-[9px] font-bold capitalize ${BOOKING_BADGE[booking.status] ?? "bg-ink/[0.06] text-ink/60"}`}>
+              {booking.status}
+            </span>
+            {detailed && canManage && booking.customerName ? (
+              <span className="text-[9.5px] text-ink/40">Customer: {booking.customerName}</span>
+            ) : null}
+            {detailed && booking.paymentStatus ? (
+              <span className="text-[9.5px] text-ink/40 capitalize">Payment: {booking.paymentStatus}</span>
+            ) : null}
+          </div>
         </div>
       </div>
       <div className="flex items-center justify-between gap-4 sm:justify-end">
-        <p className="text-[16px] font-bold">{booking.price}</p>
-        {detailed ? (
-          <button type="button" className="rounded-lg border border-ink/10 px-3 py-2 text-[10px] font-semibold text-ink/60">
-            View details
+        <p className="text-[16px] font-bold">{money(booking.totalAmount)}</p>
+        {detailed && canManage && onStatusChange ? (
+          <select
+            value={booking.status}
+            onChange={(event) => onStatusChange(booking._id, event.target.value)}
+            className="h-9 rounded-lg border border-ink/10 bg-white px-2 text-[10px] font-semibold capitalize"
+            aria-label="Booking status"
+          >
+            <option value="confirmed">Confirmed</option>
+            <option value="active">Active</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        ) : null}
+        {detailed && role === "Customer" && onStatusChange && booking.status !== "cancelled" && booking.status !== "completed" ? (
+          <button
+            type="button"
+            onClick={() => onStatusChange(booking._id, "cancelled")}
+            className="rounded-lg border border-ink/10 px-3 py-2 text-[10px] font-semibold text-red-500"
+          >
+            Cancel
           </button>
         ) : null}
       </div>
@@ -488,26 +690,14 @@ function FavoriteEquipment({
   );
 }
 
-function OwnerEquipment({ user }: { user: DashboardUser }) {
-  type EquipmentRow = {
-    _id: string;
-    name: string;
-    category: string;
-    location: string;
-    imageUrl?: string;
-    image?: string;
-    dailyRate?: number;
-    availableQuantity?: number;
-    quantity?: number;
-    status?: string;
-    approvalStatus?: string;
-    ownerId?: string;
-  };
-
+function OwnerEquipment() {
   const [equipment, setEquipment] = useState<EquipmentRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editing, setEditing] = useState<EquipmentRow | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function loadEquipment() {
     setLoaded(false);
@@ -518,7 +708,20 @@ function OwnerEquipment({ user }: { user: DashboardUser }) {
   }
 
   useEffect(() => {
-    void loadEquipment();
+    let cancelled = false;
+    fetch("/api/owner/equipments", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : { equipment: [] })
+      .then((data) => {
+        if (!cancelled) setEquipment(data.equipment ?? []);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function uploadImage(file: File) {
@@ -573,6 +776,63 @@ function OwnerEquipment({ user }: { user: DashboardUser }) {
     }
   }
 
+  async function handleUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editing) return;
+
+    setSavingEdit(true);
+    const formData = new FormData(event.currentTarget);
+
+    try {
+      const response = await fetch(`/api/owner/equipments/${editing._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.get("name"),
+          description: formData.get("description"),
+          category: formData.get("category"),
+          location: formData.get("location"),
+          imageUrl: formData.get("imageUrl"),
+          dailyRate: Number(formData.get("dailyRate")),
+          weeklyRate: Number(formData.get("weeklyRate")) || undefined,
+          monthlyRate: Number(formData.get("monthlyRate")) || undefined,
+          rentalType: formData.get("rentalType"),
+          availableQuantity: Number(formData.get("availableQuantity")),
+          terms: formData.get("terms"),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not update equipment.");
+
+      toast.success("Equipment updated.", { description: "It will be reviewed again before going live." });
+      setEditing(null);
+      await loadEquipment();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update equipment.");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function handleDelete(item: EquipmentRow) {
+    const confirmed = window.confirm(`Delete “${item.name}”? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeletingId(item._id);
+    try {
+      const response = await fetch(`/api/owner/equipments/${item._id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not delete equipment.");
+
+      setEquipment((rows) => rows.filter((row) => row._id !== item._id));
+      toast.success("Equipment deleted.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete equipment.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div>
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
@@ -619,6 +879,39 @@ function OwnerEquipment({ user }: { user: DashboardUser }) {
         </Dialog>
       </div>
 
+      <Dialog open={Boolean(editing)} onOpenChange={(next) => { if (!next) setEditing(null); }}>
+        <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit equipment</DialogTitle>
+            <DialogDescription>
+              Owner changes are reviewed again before the listing goes back live.
+            </DialogDescription>
+          </DialogHeader>
+          {editing ? (
+            <form onSubmit={handleUpdate} className="grid gap-4 pt-2 sm:grid-cols-2">
+              <OwnerField label="Equipment name" name="name"><input required name="name" defaultValue={editing.name} /></OwnerField>
+              <OwnerField label="Category" name="category"><input required name="category" defaultValue={editing.category} /></OwnerField>
+              <div className="sm:col-span-2"><OwnerField label="Description" name="description"><textarea required name="description" rows={3} defaultValue={editing.description ?? ""} /></OwnerField></div>
+              <OwnerField label="Location" name="location"><input required name="location" defaultValue={editing.location} /></OwnerField>
+              <OwnerField label="Rental type" name="rentalType">
+                <select required name="rentalType" defaultValue={editing.rentalType ?? "Daily"}>
+                  <option>Daily</option><option>Weekly</option><option>Monthly</option>
+                </select>
+              </OwnerField>
+              <OwnerField label="Daily price" name="dailyRate"><input required name="dailyRate" type="number" min="1" step="0.01" defaultValue={Number(editing.dailyRate ?? 0)} /></OwnerField>
+              <OwnerField label="Available quantity" name="availableQuantity"><input required name="availableQuantity" type="number" min="1" step="1" defaultValue={Number(editing.availableQuantity ?? editing.quantity ?? 1)} /></OwnerField>
+              <OwnerField label="Weekly price (optional)" name="weeklyRate"><input name="weeklyRate" type="number" min="1" step="0.01" defaultValue={Number(editing.weeklyRate ?? 0) || ""} /></OwnerField>
+              <OwnerField label="Monthly price (optional)" name="monthlyRate"><input name="monthlyRate" type="number" min="1" step="0.01" defaultValue={Number(editing.monthlyRate ?? 0) || ""} /></OwnerField>
+              <div className="sm:col-span-2"><OwnerField label="Rental terms" name="terms"><textarea name="terms" rows={2} defaultValue={editing.terms ?? ""} /></OwnerField></div>
+              <div className="sm:col-span-2"><OwnerField label="Image URL" name="imageUrl"><input name="imageUrl" type="url" defaultValue={editing.imageUrl ?? editing.image ?? ""} /></OwnerField></div>
+              <button disabled={savingEdit} type="submit" className="sm:col-span-2 h-11 rounded-xl bg-ink text-[12px] font-semibold text-cream disabled:opacity-50">
+                {savingEdit ? "Saving changes..." : "Save changes"}
+              </button>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       {!loaded ? (
         <div className="mt-8 h-64 animate-pulse rounded-2xl bg-white" />
       ) : equipment.length === 0 ? (
@@ -630,36 +923,286 @@ function OwnerEquipment({ user }: { user: DashboardUser }) {
           </div>
         </div>
       ) : (
-        <div className="mt-8 overflow-hidden rounded-2xl border border-ink/[0.08] bg-white">
+        <div className="mt-8 overflow-x-auto rounded-2xl border border-ink/[0.08] bg-white">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Equipment</TableHead><TableHead>Category</TableHead><TableHead>Location</TableHead><TableHead>Price</TableHead><TableHead>Quantity</TableHead><TableHead>Status</TableHead>
+                <TableHead>Equipment</TableHead><TableHead>Category</TableHead><TableHead>Location</TableHead><TableHead>Price</TableHead><TableHead>Quantity</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {equipment.map((item) => (
-                <TableRow key={item._id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={item.imageUrl ?? item.image ?? ""} alt="" className="size-12 rounded-xl object-cover" />
-                      <span className="font-bold">{item.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{item.category}</TableCell>
-                  <TableCell>{item.location}</TableCell>
-                  <TableCell>${Number(item.dailyRate ?? 0).toFixed(2)} / day</TableCell>
-                  <TableCell>{item.availableQuantity ?? item.quantity ?? 1}</TableCell>
-                  <TableCell>
-                    <span className={`rounded-full px-2.5 py-1 text-[9px] font-bold ${(item.status ?? item.approvalStatus) === "approved" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                      {item.status ?? item.approvalStatus ?? "pending"}
-                    </span>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {equipment.map((item) => {
+                const status = item.status ?? item.approvalStatus ?? "pending";
+                return (
+                  <TableRow key={item._id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={item.imageUrl ?? item.image ?? ""} alt="" className="size-12 rounded-xl object-cover" />
+                        <span className="font-bold">{item.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{item.category}</TableCell>
+                    <TableCell>{item.location}</TableCell>
+                    <TableCell>${Number(item.dailyRate ?? 0).toFixed(2)} / day</TableCell>
+                    <TableCell>{item.availableQuantity ?? item.quantity ?? 1}</TableCell>
+                    <TableCell>
+                      <span className={`rounded-full px-2.5 py-1 text-[9px] font-bold capitalize ${APPROVAL_BADGE[status] ?? "bg-amber-50 text-amber-700"}`}>
+                        {status}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <button type="button" onClick={() => setEditing(item)} className="grid size-8 place-items-center rounded-lg border border-ink/10 text-ink/55" aria-label={`Edit ${item.name}`}>
+                          <Pencil className="size-3.5" />
+                        </button>
+                        <button type="button" onClick={() => handleDelete(item)} disabled={deletingId === item._id} className="grid size-8 place-items-center rounded-lg border border-ink/10 text-red-500 disabled:opacity-40" aria-label={`Delete ${item.name}`}>
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminApprovals() {
+  const [equipment, setEquipment] = useState<EquipmentRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/admin/equipments?status=pending", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : { equipment: [] })
+      .then((data) => {
+        if (!cancelled) setEquipment(data.equipment ?? []);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function review(item: EquipmentRow, status: "approved" | "rejected") {
+    setBusyId(item._id);
+    try {
+      const response = await fetch("/api/admin/equipments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ equipmentId: item._id, status }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not review equipment.");
+
+      setEquipment((rows) => rows.filter((row) => row._id !== item._id));
+      toast.success(status === "approved" ? "Listing approved." : "Listing rejected.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not review equipment.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div>
+      <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Marketplace quality</p>
+      <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">Equipment Approvals</h1>
+      <p className="mt-2 text-[13px] text-ink/50">New listings wait here until an admin approves them.</p>
+
+      {!loaded ? (
+        <div className="mt-8 h-64 animate-pulse rounded-2xl bg-white" />
+      ) : equipment.length === 0 ? (
+        <div className="mt-8 grid min-h-64 place-items-center rounded-2xl border border-dashed border-ink/15 bg-white p-8 text-center">
+          <div>
+            <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-cream text-ink/50"><ClipboardCheck className="size-5" /></span>
+            <p className="mt-4 text-[14px] font-bold">Nothing waiting for review</p>
+            <p className="mt-2 text-[12px] text-ink/45">New owner listings will appear here automatically.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-8 space-y-3">
+          {equipment.map((item) => (
+            <div key={item._id} className="flex flex-col gap-4 rounded-2xl border border-ink/[0.08] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={item.imageUrl ?? item.image ?? ""} alt="" className="size-16 shrink-0 rounded-xl object-cover" />
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-bold">{item.name}</p>
+                  <p className="mt-1 text-[10.5px] text-ink/40">
+                    {item.category} · {item.location} · ${Number(item.dailyRate ?? 0).toFixed(2)}/day
+                  </p>
+                  <p className="mt-1 text-[10px] text-ink/35">Owner: {item.ownerName ?? "Unknown"}</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={busyId === item._id}
+                  onClick={() => review(item, "approved")}
+                  className="inline-flex h-9 items-center rounded-lg bg-ink px-3 text-[10px] font-semibold text-cream disabled:opacity-50"
+                >
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  disabled={busyId === item._id}
+                  onClick={() => review(item, "rejected")}
+                  className="inline-flex h-9 items-center rounded-lg border border-ink/10 px-3 text-[10px] font-semibold text-red-500 disabled:opacity-50"
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminUsers({ currentUserId }: { currentUserId?: string }) {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/admin/users", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : { users: [] })
+      .then((data) => {
+        if (!cancelled) setUsers(data.users ?? []);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function changeRole(user: AdminUser, role: string) {
+    setBusyId(user._id);
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user._id, role }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not update the user.");
+
+      setUsers((rows) => rows.map((row) => row._id === user._id ? { ...row, role } : row));
+      toast.success(`${user.name ?? "User"} is now a ${role}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update the user.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div>
+      <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Community</p>
+      <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">Manage Users</h1>
+      <p className="mt-2 text-[13px] text-ink/50">Promote trusted renters to owners or return them to customers.</p>
+
+      {!loaded ? (
+        <div className="mt-8 h-64 animate-pulse rounded-2xl bg-white" />
+      ) : users.length === 0 ? (
+        <div className="mt-8 grid min-h-64 place-items-center rounded-2xl border border-dashed border-ink/15 bg-white p-8 text-center">
+          <p className="text-[12px] text-ink/45">No users found.</p>
+        </div>
+      ) : (
+        <div className="mt-8 overflow-x-auto rounded-2xl border border-ink/[0.08] bg-white">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead>Joined</TableHead><TableHead>Change role</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((user) => {
+                const role = normalizeRole(user.role);
+                const isSelf = Boolean(currentUserId && user._id === currentUserId);
+                return (
+                  <TableRow key={user._id}>
+                    <TableCell>
+                      <span className="font-bold">{user.name ?? "Unnamed user"}</span>
+                    </TableCell>
+                    <TableCell>{user.email ?? "—"}</TableCell>
+                    <TableCell>
+                      <span className="rounded-full bg-cream px-2.5 py-1 text-[9px] font-bold">{role}</span>
+                    </TableCell>
+                    <TableCell>{user.createdAt ? formatDate(user.createdAt) : "—"}</TableCell>
+                    <TableCell>
+                      {role === "Admin" || isSelf ? (
+                        <span className="text-[10px] text-ink/35">{isSelf ? "Your account" : "Admin"}</span>
+                      ) : (
+                        <select
+                          value={role}
+                          disabled={busyId === user._id}
+                          onChange={(event) => changeRole(user, event.target.value)}
+                          className="h-9 rounded-lg border border-ink/10 bg-white px-2 text-[10px] font-semibold disabled:opacity-50"
+                          aria-label={`Role for ${user.name ?? "user"}`}
+                        >
+                          <option value="Customer">Customer</option>
+                          <option value="Owner">Owner</option>
+                        </select>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Payments({ role, bookings, loaded }: { role: string; bookings: Booking[]; loaded: boolean }) {
+  const paid = bookings.filter((booking) => booking.paymentStatus === "paid");
+  const total = paid.reduce((sum, booking) => sum + Number(booking.totalAmount ?? 0), 0);
+
+  return (
+    <div>
+      <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Transactions</p>
+      <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">Payments</h1>
+      <p className="mt-2 text-[13px] text-ink/50">
+        {role === "Customer" ? "Your rental payments and receipts." : "Completed rental payments."}
+      </p>
+
+      <div className="mt-8 grid gap-3 sm:grid-cols-3">
+        <StatCard label="Paid bookings" value={loaded ? String(paid.length) : "—"} note="Successful Stripe payments" />
+        <StatCard label="Total volume" value={loaded ? money(total) : "—"} note="Gross rental value" />
+        <StatCard label="Currency" value="USD" note="All rentals are charged in dollars" />
+      </div>
+
+      {!loaded ? (
+        <div className="mt-6 h-48 animate-pulse rounded-2xl bg-white" />
+      ) : paid.length === 0 ? (
+        <div className="mt-6 grid min-h-48 place-items-center rounded-2xl border border-dashed border-ink/15 bg-white p-8 text-center">
+          <p className="text-[12px] text-ink/45">No paid bookings yet.</p>
+        </div>
+      ) : (
+        <div className="mt-6 space-y-3">
+          {paid.map((booking) => (
+            <BookingRow key={booking._id} booking={booking} role={role} detailed />
+          ))}
         </div>
       )}
     </div>
@@ -740,6 +1283,16 @@ function ProfileField({ label, value }: { label: string; value: string }) {
       <p className="mt-2 rounded-xl border border-ink/10 bg-cream px-3.5 py-3 text-[12px] text-ink/70">{value}</p>
     </div>
   );
+}
+
+function money(value: number) {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 function getInitials(name: string) {
