@@ -1224,43 +1224,92 @@ function AdminEquipment() {
   const [equipment, setEquipment] = useState<EquipmentRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<EquipmentRow | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/admin/equipments?status=all", { cache: "no-store" })
+    fetch('/api/admin/equipments?status=all', { cache: 'no-store' })
       .then((response) => response.ok ? response.json() : { equipment: [] })
-      .then((data) => {
-        if (!cancelled) setEquipment(data.equipment ?? []);
-      })
+      .then((data) => { if (!cancelled) setEquipment(data.equipment ?? []); })
       .catch(() => undefined)
-      .finally(() => {
-        if (!cancelled) setLoaded(true);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+      .finally(() => { if (!cancelled) setLoaded(true); });
+    return () => { cancelled = true; };
   }, []);
 
-  async function review(item: EquipmentRow, status: "pending" | "approved" | "rejected") {
+  async function review(item: EquipmentRow, status: 'approved' | 'rejected') {
     setBusyId(item._id);
     try {
-      const response = await fetch("/api/admin/equipments", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch('/api/admin/equipments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ equipmentId: item._id, status }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not review equipment.");
-
-      setEquipment((rows) => rows.map((row) => row._id === item._id
-        ? { ...row, status, approvalStatus: status }
-        : row));
-      toast.success(`Listing marked ${status}.`);
+      if (!response.ok) throw new Error(data.error || 'Could not review equipment.');
+      setEquipment((rows) => rows.map((row) => row._id === item._id ? { ...row, status, approvalStatus: status } : row));
+      toast.success(`Equipment ${status}.`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not review equipment.");
+      toast.error(error instanceof Error ? error.message : 'Could not review equipment.');
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function updateEquipment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editing) return;
+    setSavingEdit(true);
+    const formData = new FormData(event.currentTarget);
+    const updates = {
+      name: String(formData.get('name') ?? ''),
+      description: String(formData.get('description') ?? ''),
+      category: String(formData.get('category') ?? ''),
+      brand: String(formData.get('brand') ?? ''),
+      model: String(formData.get('model') ?? ''),
+      condition: String(formData.get('condition') ?? ''),
+      location: String(formData.get('location') ?? ''),
+      imageUrl: String(formData.get('imageUrl') ?? ''),
+      dailyRate: Number(formData.get('dailyRate')),
+      weeklyRate: Number(formData.get('weeklyRate')) || undefined,
+      monthlyRate: Number(formData.get('monthlyRate')) || undefined,
+      rentalType: String(formData.get('rentalType') ?? 'Daily'),
+      availableQuantity: Number(formData.get('availableQuantity')),
+      terms: String(formData.get('terms') ?? ''),
+    };
+
+    try {
+      const response = await fetch(`/api/admin/equipments/${editing._id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not update equipment.');
+      setEquipment((rows) => rows.map((row) => row._id === editing._id ? { ...row, ...updates } : row));
+      setEditing(null);
+      toast.success('Equipment updated.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update equipment.');
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function deleteEquipment(item: EquipmentRow) {
+    if (!window.confirm(`Delete ${item.name}? This cannot be undone.`)) return;
+    setDeletingId(item._id);
+    try {
+      const response = await fetch(`/api/admin/equipments/${item._id}`, { method: 'DELETE' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not delete equipment.');
+      setEquipment((rows) => rows.filter((row) => row._id !== item._id));
+      toast.success('Equipment deleted.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete equipment.');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -1268,8 +1317,7 @@ function AdminEquipment() {
     <div>
       <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Marketplace inventory</p>
       <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">All Equipment</h1>
-      <p className="mt-2 text-[13px] text-ink/50">Review every equipment listing and manage its approval status.</p>
-
+      <p className="mt-2 text-[13px] text-ink/50">Review every listing, update equipment information, and manage approval status.</p>
       {!loaded ? (
         <div className="mt-8 h-64 animate-pulse rounded-2xl bg-white" />
       ) : equipment.length === 0 ? (
@@ -1277,51 +1325,82 @@ function AdminEquipment() {
           <div>
             <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-cream text-ink/50"><ClipboardCheck className="size-5" /></span>
             <p className="mt-4 text-[14px] font-bold">No equipment listings found</p>
-            <p className="mt-2 text-[12px] text-ink/45">Owner listings will appear here when they are created.</p>
+            <p className="mt-2 text-[12px] text-ink/45">Owner listings will appear here when created.</p>
           </div>
         </div>
       ) : (
-        <div className="mt-8 space-y-3">
-          {equipment.map((item) => (
-            <div key={item._id} className="flex flex-col gap-4 rounded-2xl border border-ink/[0.08] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-center gap-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={item.imageUrl ?? item.image ?? ""} alt="" className="size-16 shrink-0 rounded-xl object-cover" />
-                <div className="min-w-0">
-                  <p className="truncate text-[13px] font-bold">{item.name}</p>
-                  <p className="mt-1 text-[10.5px] text-ink/40">
-                    {item.category} · {item.location} · ${Number(item.dailyRate ?? 0).toFixed(2)}/day
-                  </p>
-                  <p className="mt-1 text-[10px] text-ink/35">Owner: {item.ownerName ?? "Unknown"}</p>
-                  <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[9px] font-bold capitalize ${APPROVAL_BADGE[item.status ?? item.approvalStatus ?? "pending"] ?? "bg-amber-50 text-amber-700"}`}>
-                    {item.status ?? item.approvalStatus ?? "pending"}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Link href={`/equipment/${item._id}`} className="inline-flex h-9 items-center rounded-lg border border-ink/10 px-3 text-[10px] font-semibold text-ink/65">
-                  View details
-                </Link>
-                <select
-                  value={item.status ?? item.approvalStatus ?? "pending"}
-                  disabled={busyId === item._id}
-                  onChange={(event) => review(item, event.target.value as "pending" | "approved" | "rejected")}
-                  className="h-9 rounded-lg border border-ink/10 bg-white px-2 text-[10px] font-semibold disabled:opacity-50"
-                  aria-label={`Approval status for ${item.name}`}
-                >
-                  <option value="pending">Pending</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-              </div>
-            </div>
-          ))}
+        <div className="mt-8 overflow-x-auto rounded-2xl border border-ink/[0.08] bg-white">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-cream/70 hover:bg-cream/70">
+                <TableHead>Equipment Name</TableHead><TableHead>Category</TableHead><TableHead>Owner</TableHead><TableHead>Rental Price</TableHead><TableHead>Available Quantity</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {equipment.map((item) => {
+                const status = item.status ?? item.approvalStatus ?? 'pending';
+                const rentalType = item.rentalType === 'Weekly' || item.rentalType === 'Monthly' ? item.rentalType : 'Daily';
+                const dailyRate = Number(item.dailyRate ?? 0);
+                const rentalPrice = rentalType === 'Weekly' ? Number(item.weeklyRate ?? dailyRate * 7) : rentalType === 'Monthly' ? Number(item.monthlyRate ?? dailyRate * 30) : dailyRate;
+                return (
+                  <TableRow key={item._id}>
+                    <TableCell className="max-w-56">
+                      <div className="flex min-w-40 items-center gap-3">
+                        {item.imageUrl || item.image ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={item.imageUrl ?? item.image} alt="" className="size-11 shrink-0 rounded-lg object-cover" />
+                        ) : <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-cream text-ink/40"><Package className="size-4" /></span>}
+                        <span className="truncate text-[11px] font-semibold">{item.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-[10.5px] text-ink/60">{item.category}</TableCell>
+                    <TableCell className="text-[10.5px] text-ink/60">{item.ownerName ?? 'Unknown owner'}</TableCell>
+                    <TableCell className="whitespace-nowrap text-[10.5px] font-semibold">{money(rentalPrice)} / {rentalType.toLowerCase()}</TableCell>
+                    <TableCell className="text-[10.5px]">{item.availableQuantity ?? item.quantity ?? 1}</TableCell>
+                    <TableCell><span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-bold capitalize ${APPROVAL_BADGE[status] ?? 'bg-amber-50 text-amber-700'}`}>{status}</span></TableCell>
+                    <TableCell>
+                      <div className="flex min-w-max items-center gap-1.5">
+                        <button type="button" disabled={busyId === item._id || status === 'approved'} onClick={() => void review(item, 'approved')} className="h-8 rounded-lg bg-ink px-2.5 text-[9px] font-semibold text-cream disabled:opacity-40">Approve</button>
+                        <button type="button" disabled={busyId === item._id || status === 'rejected'} onClick={() => void review(item, 'rejected')} className="h-8 rounded-lg border border-ink/10 px-2.5 text-[9px] font-semibold text-red-500 disabled:opacity-40">Reject</button>
+                        <button type="button" onClick={() => setEditing(item)} className="h-8 rounded-lg border border-ink/10 px-2.5 text-[9px] font-semibold text-ink/65">Update</button>
+                        <button type="button" disabled={deletingId === item._id} onClick={() => void deleteEquipment(item)} className="h-8 rounded-lg border border-red-200 px-2.5 text-[9px] font-semibold text-red-600 disabled:opacity-40">{deletingId === item._id ? 'Deleting...' : 'Delete'}</button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
       )}
+
+      <Dialog open={Boolean(editing)} onOpenChange={(next) => { if (!next) setEditing(null); }}>
+        <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader><DialogTitle>Update equipment</DialogTitle><DialogDescription>Admin edits preserve the current listing approval status.</DialogDescription></DialogHeader>
+          {editing ? (
+            <form onSubmit={updateEquipment} className="grid gap-4 pt-2 sm:grid-cols-2">
+              <OwnerField label="Equipment name" name="name"><input required name="name" defaultValue={editing.name} /></OwnerField>
+              <OwnerField label="Category" name="category"><select required name="category" defaultValue={editing.category}><option>Construction Equipment</option><option>Photography Equipment</option><option>Vehicles &amp; Transportation</option><option>Agriculture Equipment</option><option>Electronics</option><option>Event Equipment</option></select></OwnerField>
+              <div className="sm:col-span-2"><OwnerField label="Description" name="description"><textarea required name="description" rows={3} defaultValue={editing.description ?? ''} /></OwnerField></div>
+              <OwnerField label="Brand" name="brand"><input name="brand" defaultValue={editing.brand ?? ''} /></OwnerField>
+              <OwnerField label="Model" name="model"><input name="model" defaultValue={editing.model ?? ''} /></OwnerField>
+              <OwnerField label="Equipment condition" name="condition"><select name="condition" defaultValue={editing.condition ?? 'Good'}><option>New</option><option>Like New</option><option>Good</option><option>Fair</option></select></OwnerField>
+              <OwnerField label="Location" name="location"><input required name="location" defaultValue={editing.location} /></OwnerField>
+              <OwnerField label="Rental type" name="rentalType"><select name="rentalType" defaultValue={editing.rentalType ?? 'Daily'}><option>Daily</option><option>Weekly</option><option>Monthly</option></select></OwnerField>
+              <OwnerField label="Daily price" name="dailyRate"><input required name="dailyRate" type="number" min="0.01" step="0.01" defaultValue={editing.dailyRate ?? 0} /></OwnerField>
+              <OwnerField label="Available quantity" name="availableQuantity"><input required name="availableQuantity" type="number" min="1" step="1" defaultValue={editing.availableQuantity ?? editing.quantity ?? 1} /></OwnerField>
+              <OwnerField label="Weekly price (optional)" name="weeklyRate"><input name="weeklyRate" type="number" min="0.01" step="0.01" defaultValue={editing.weeklyRate ?? ''} /></OwnerField>
+              <OwnerField label="Monthly price (optional)" name="monthlyRate"><input name="monthlyRate" type="number" min="0.01" step="0.01" defaultValue={editing.monthlyRate ?? ''} /></OwnerField>
+              <div className="sm:col-span-2"><OwnerField label="Rental terms and conditions" name="terms"><textarea name="terms" rows={3} defaultValue={editing.terms ?? ''} /></OwnerField></div>
+              <div className="sm:col-span-2"><OwnerField label="Image URL" name="imageUrl"><input name="imageUrl" type="url" defaultValue={editing.imageUrl ?? editing.image ?? ''} /></OwnerField></div>
+              <button disabled={savingEdit} type="submit" className="sm:col-span-2 h-11 rounded-xl bg-ink text-[12px] font-semibold text-cream disabled:opacity-50">{savingEdit ? 'Saving changes...' : 'Save changes'}</button>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
 function AdminUsers({ currentUserId }: { currentUserId?: string }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loaded, setLoaded] = useState(false);
