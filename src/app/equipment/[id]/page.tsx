@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getEquipmentById, getEquipmentReviews } from "@/lib/equipment";
 import { SiteHeader } from "@/components/site/site-header";
@@ -17,14 +17,14 @@ export default async function EquipmentPage({
 
   const { id } = await params;
   const equipment = await getEquipmentById(id);
-  if (!equipment) redirect("/#featured-equipment");
+  if (!equipment) notFound();
 
   const reviews = await getEquipmentReviews(equipment.id);
 
   return (
     <div className="min-h-dvh bg-cream text-ink">
       <SiteHeader />
-      <EquipmentDetails equipment={equipment} reviews={reviews} />
+      <EquipmentDetails equipment={equipment} reviews={reviews} role={session.user.role ?? "Customer"} />
     </div>
   );
 }

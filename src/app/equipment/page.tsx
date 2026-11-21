@@ -171,7 +171,9 @@ export default async function EquipmentListPage({
               </span>
               <p className="mt-4 text-[15px] font-bold">Nothing here yet</p>
               <p className="mt-2 max-w-sm text-[12px] leading-5 text-ink/45">
-                Try a different search term or clear the filters to see every approved listing.
+                {category
+                  ? "No approved listings are available in this category yet. Owner submissions appear here after an admin approves them."
+                  : "Try a different search term or clear the filters to see every approved listing."}
               </p>
               <Link
                 href="/equipment"

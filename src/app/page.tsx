@@ -26,12 +26,12 @@ import { getFeaturedEquipment } from "@/lib/equipment";
 export const instant = false;
 
 const categories = [
-  { icon: HardHat, name: "Construction Equipment", count: "480+ listings" },
-  { icon: Camera, name: "Photography Equipment", count: "360+ listings" },
-  { icon: CarFront, name: "Vehicles & Transportation", count: "210+ listings" },
-  { icon: Wheat, name: "Agriculture Equipment", count: "175+ listings" },
-  { icon: Monitor, name: "Electronics", count: "295+ listings" },
-  { icon: PartyPopper, name: "Event Equipment", count: "190+ listings" },
+  { icon: HardHat, name: "Construction Equipment" },
+  { icon: Camera, name: "Photography Equipment" },
+  { icon: CarFront, name: "Vehicles & Transportation" },
+  { icon: Wheat, name: "Agriculture Equipment" },
+  { icon: Monitor, name: "Electronics" },
+  { icon: PartyPopper, name: "Event Equipment" },
 ];
 
 const benefits = [
@@ -296,7 +296,7 @@ export default async function HomePage() {
             </div>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {categories.map(({ icon: Icon, name, count }) => (
+              {categories.map(({ icon: Icon, name }) => (
                 <MotionDiv
                   key={name}
                   className="group rounded-2xl border border-ink/[0.08] bg-white p-5 transition duration-200 hover:-translate-y-0.5 hover:border-ink/20 hover:shadow-[0_18px_36px_-28px_rgba(11,31,26,0.5)]"
@@ -309,7 +309,7 @@ export default async function HomePage() {
                       <ArrowUpRight className="size-4 text-ink/20 transition group-hover:text-ink/50" />
                     </div>
                     <p className="mt-4 text-[13.5px] font-semibold">{name}</p>
-                    <p className="mt-1 text-[11px] text-ink/40">{count}</p>
+                    <p className="mt-1 text-[11px] text-ink/40">Browse available gear</p>
                   </Link>
                 </MotionDiv>
               ))}

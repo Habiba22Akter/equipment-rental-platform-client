@@ -109,6 +109,24 @@ function escapeRegex(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function normalizeCategory(value: string) {
+  return value.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+const categoryAliases: Record<string, string[]> = {
+  "construction equipment": ["construction", "construction equipment"],
+  "photography equipment": ["photography", "photographic equipment", "photography equipment"],
+  "vehicles and transportation": [
+    "vehicle",
+    "vehicles",
+    "transportation",
+    "vehicles and transportation",
+  ],
+  "agriculture equipment": ["agriculture", "agricultural", "agriculture equipment"],
+  electronics: ["electronic", "electronics"],
+  "event equipment": ["event", "events", "event equipment"],
+};
+
 export async function getFeaturedEquipment() {
   await connection();
   const client = getMongoClient();
@@ -146,7 +164,13 @@ export async function getEquipmentList(filters: EquipmentFilters = {}) {
   ];
 
   if (filters.category) {
-    conditions.push({ category: filters.category });
+    const normalizedCategory = normalizeCategory(filters.category);
+    const categoryValues = categoryAliases[normalizedCategory] ?? [filters.category];
+    conditions.push({
+      category: {
+        $in: categoryValues.map((value) => new RegExp(`^${escapeRegex(value)}$`, "i")),
+      },
+    });
   }
 
   if (filters.q) {
@@ -212,6 +236,11 @@ export async function getEquipmentById(id: string) {
       ? rentalTypeValue
       : "Daily";
   const dailyRate = asNumber(item.dailyRate ?? item.pricePerDay);
+  const quantityValue = item.availableQuantity ?? item.quantity;
+  const availableQuantity =
+    typeof quantityValue === "number" && Number.isFinite(quantityValue)
+      ? Math.max(0, quantityValue)
+      : 1;
 
   return {
     id: item._id.toString(),
@@ -227,7 +256,7 @@ export async function getEquipmentById(id: string) {
     rentalType,
     weeklyRate: asNumber(item.weeklyRate) || dailyRate * 7,
     monthlyRate: asNumber(item.monthlyRate) || dailyRate * 30,
-    availableQuantity: asNumber(item.availableQuantity ?? item.quantity) || 1,
+    availableQuantity,
     terms: asString(
       item.terms ?? item.rentalTerms,
       "Return the equipment clean and on time. The renter is responsible for accidental damage during the rental period.",

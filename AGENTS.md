@@ -1,9 +1,57 @@
-<!-- BEGIN:nextjs-agent-rules -->
+# GearGrid Client Agent Notes
 
-## This is NOT the Next.js you know
+## Stack
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+- Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4.
+- Better Auth with MongoDB adapter for sessions and role data.
+- Express API at `http://localhost:5001` for equipment and booking data.
+- MongoDB collections: `equipment`, `favorites`, `bookings`, `payments`, plus Better Auth collections.
+- Stripe Checkout for rental payments; shadcn/base-ui components for UI primitives.
 
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+## Next.js 16 rules
 
-<!-- END:nextjs-agent-rules -->
+- This is Next.js 16: read the local docs in `node_modules/next/dist/docs/` before changing routing or cache behavior.
+- Dynamic routes use `params: Promise<{ id: string }>` in server components and route handlers.
+- Keep secrets and MongoDB access server-side.
+- Do not expose Stripe secret keys or Express internal credentials to client components.
+
+## Roles and routes
+
+- `Customer`: browse and book equipment, manage favorites and rentals.
+- `Owner`: create, edit and delete owned equipment; view rental requests.
+- `Admin`: review equipment and manage marketplace records.
+- Owner dashboard is `/owner/dashboard`.
+- Customer dashboard is `/customer/dashboard`.
+- Equipment details are private at `/equipment/[id]`.
+- The MongoDB equipment `_id` is the complete equipment id in the route.
+
+## Owner equipment workflow
+
+- The owner `My Equipment` tab uses a shadcn Table and Add Equipment shadcn Dialog.
+- Client components call `/api/owner/equipments` and `/api/owner/equipments/[id]`.
+- Next.js route handlers authenticate the session and forward the user id/role to Express.
+- Owner API filtering must use `ownerId=<logged-in-user-id>`.
+- Create and edit payload fields:
+  - `name`, `description`, `category`, `location`, `imageUrl`
+  - `dailyRate`, `weeklyRate`, `monthlyRate`, `rentalType`
+  - `availableQuantity`, `terms`
+- New owner listings start as `pending`/`approvalStatus: pending`.
+- Editing an owner listing resets its approval status to pending.
+- Owners cannot edit or delete another owner's equipment.
+- Equipment with confirmed or active bookings cannot be deleted.
+- The table supports edit and delete actions and shows approval status.
+
+## Favorites and payments
+
+- `/api/favorites` stores favorite equipment for the signed-in customer.
+- `/api/customer/favorites` returns hydrated favorite equipment for the dashboard.
+- `/api/checkout` validates dates and quantity, calculates the rental total, and creates Stripe Checkout.
+- `/api/payments/success` and `/api/stripe/webhook` confirm payment and create `bookings` and `payments` records exactly once.
+- Never trust a browser-calculated total for checkout; the server recalculates it from MongoDB equipment data.
+
+## Commands
+
+- `npm run dev` - start Next.js on port 3000.
+- `npm run build` - type-check and create a production build.
+- `npm run lint` - run ESLint.
+- Express must run separately with `npm run dev` in the server project.

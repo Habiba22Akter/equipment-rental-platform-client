@@ -127,6 +127,22 @@ type AdminUser = {
   createdAt?: string;
 };
 
+type PaymentRow = {
+  _id: string;
+  amount: number;
+  currency?: string;
+  status?: string;
+  createdAt?: string;
+  equipment?: { name?: string; imageUrl?: string; category?: string } | null;
+};
+
+type PaymentSummary = {
+  count: number;
+  paidCount: number;
+  totalAmount: number;
+  currency: string;
+};
+
 const BOOKING_BADGE: Record<string, string> = {
   confirmed: "bg-emerald-50 text-emerald-700",
   active: "bg-sky-50 text-sky-700",
@@ -394,7 +410,7 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
             {activeTab === "listings" ? <OwnerEquipment /> : null}
             {activeTab === "approvals" ? <AdminApprovals /> : null}
             {activeTab === "users" ? <AdminUsers currentUserId={user.id} /> : null}
-            {activeTab === "payments" ? <Payments role={role} bookings={bookings} loaded={bookingsLoaded} /> : null}
+            {activeTab === "payments" ? <Payments role={role} /> : null}
           </motion.div>
         </main>
       </div>
@@ -1181,34 +1197,114 @@ function AdminUsers({ currentUserId }: { currentUserId?: string }) {
   );
 }
 
-function Payments({ role, bookings, loaded }: { role: string; bookings: Booking[]; loaded: boolean }) {
-  const paid = bookings.filter((booking) => booking.paymentStatus === "paid");
-  const total = paid.reduce((sum, booking) => sum + Number(booking.totalAmount ?? 0), 0);
+function Payments({ role }: { role: string }) {
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [summary, setSummary] = useState<PaymentSummary | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/payments", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : { payments: [], summary: null })
+      .then((data) => {
+        if (cancelled) return;
+        setPayments(data.payments ?? []);
+        setSummary(data.summary ?? null);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const statusStyles: Record<string, string> = {
+    paid: "bg-emerald-50 text-emerald-700",
+    pending: "bg-amber-50 text-amber-700",
+    refunded: "bg-red-50 text-red-600",
+    failed: "bg-red-50 text-red-600",
+  };
 
   return (
     <div>
       <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Transactions</p>
       <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">Payments</h1>
       <p className="mt-2 text-[13px] text-ink/50">
-        {role === "Customer" ? "Your rental payments and receipts." : "Completed rental payments."}
+        {role === "Customer"
+          ? "Your rental payments and receipts."
+          : role === "Owner"
+            ? "Payments collected for your equipment."
+            : "Every transaction processed by the marketplace."}
       </p>
 
       <div className="mt-8 grid gap-3 sm:grid-cols-3">
-        <StatCard label="Paid bookings" value={loaded ? String(paid.length) : "—"} note="Successful Stripe payments" />
-        <StatCard label="Total volume" value={loaded ? money(total) : "—"} note="Gross rental value" />
-        <StatCard label="Currency" value="USD" note="All rentals are charged in dollars" />
+        <StatCard
+          label="Paid transactions"
+          value={loaded ? String(summary?.paidCount ?? 0) : "—"}
+          note="Successful Stripe payments"
+        />
+        <StatCard
+          label="Total volume"
+          value={loaded ? money(summary?.totalAmount ?? 0) : "—"}
+          note="Gross rental value"
+        />
+        <StatCard
+          label="Currency"
+          value={(summary?.currency ?? "usd").toUpperCase()}
+          note="All rentals are charged in dollars"
+        />
       </div>
 
       {!loaded ? (
         <div className="mt-6 h-48 animate-pulse rounded-2xl bg-white" />
-      ) : paid.length === 0 ? (
+      ) : payments.length === 0 ? (
         <div className="mt-6 grid min-h-48 place-items-center rounded-2xl border border-dashed border-ink/15 bg-white p-8 text-center">
-          <p className="text-[12px] text-ink/45">No paid bookings yet.</p>
+          <div>
+            <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-cream text-ink/50">
+              <DollarSign className="size-5" />
+            </span>
+            <p className="mt-4 text-[14px] font-bold">No payments yet</p>
+            <p className="mt-2 text-[12px] text-ink/45">
+              Paid bookings will show their transaction receipts here.
+            </p>
+          </div>
         </div>
       ) : (
         <div className="mt-6 space-y-3">
-          {paid.map((booking) => (
-            <BookingRow key={booking._id} booking={booking} role={role} detailed />
+          {payments.map((payment) => (
+            <div
+              key={payment._id}
+              className="flex flex-col gap-4 rounded-xl border border-ink/[0.08] bg-white p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                {payment.equipment?.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={payment.equipment.imageUrl} alt="" className="size-12 shrink-0 rounded-xl object-cover" />
+                ) : (
+                  <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-cream text-ink/40">
+                    <Package className="size-4" />
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-bold">
+                    {payment.equipment?.name ?? "Equipment rental"}
+                  </p>
+                  <p className="mt-1 text-[10.5px] text-ink/40">
+                    {payment.createdAt ? formatDate(payment.createdAt) : "—"}
+                    {payment.equipment?.category ? ` · ${payment.equipment.category}` : ""}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-3 sm:justify-end">
+                <span className={`rounded-full px-2.5 py-1 text-[9px] font-bold capitalize ${statusStyles[payment.status ?? "paid"] ?? "bg-ink/[0.06] text-ink/60"}`}>
+                  {payment.status ?? "paid"}
+                </span>
+                <p className="text-[15px] font-bold">{money(payment.amount)}</p>
+              </div>
+            </div>
           ))}
         </div>
       )}

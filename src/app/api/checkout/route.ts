@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { MongoClient, ObjectId } from "mongodb";
 import Stripe from "stripe";
 import { auth } from "@/lib/auth";
+import { normalizeRole } from "@/lib/roles";
 
 const client = new MongoClient(process.env.DB_URL!);
 const db = client.db(process.env.DB_NAME ?? "equipment-rental-platform");
@@ -16,6 +17,9 @@ function dateNumber(value: unknown) {
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (normalizeRole(session.user.role) !== "Customer") {
+    return NextResponse.json({ error: "Only customer accounts can book equipment." }, { status: 403 });
+  }
   if (!process.env.STRIPE_SECRET_KEY) {
     return NextResponse.json({ error: "Stripe is not configured." }, { status: 500 });
   }
@@ -34,6 +38,9 @@ export async function POST(request: NextRequest) {
 
   const equipment = await db.collection("equipment").findOne({ _id: new ObjectId(equipmentId) });
   if (!equipment) return NextResponse.json({ error: "Equipment not found." }, { status: 404 });
+  if (equipment.status !== "approved" && equipment.approvalStatus !== "approved") {
+    return NextResponse.json({ error: "This equipment is not approved for rental." }, { status: 409 });
+  }
 
   const availableQuantity = Number(equipment.availableQuantity ?? equipment.quantity ?? 1);
   if (quantity > availableQuantity) {
