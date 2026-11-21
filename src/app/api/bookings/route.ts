@@ -8,13 +8,11 @@ export async function GET() {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const role = session.user.role;
-  const query = role === "Admin"
-    ? ""
-    : role === "Owner"
-      ? `?ownerId=${encodeURIComponent(session.user.id)}`
-      : `?customerId=${encodeURIComponent(session.user.id)}`;
+  const query = new URLSearchParams({ limit: "200" });
+  if (role === "Owner") query.set("ownerId", session.user.id);
+  else if (role !== "Admin") query.set("customerId", session.user.id);
 
-  const result = await serverFetch<unknown[]>(`/api/bookings${query}`);
+  const result = await serverFetch<unknown[]>(`/api/bookings?${query.toString()}`);
 
   if (!result.ok) {
     return NextResponse.json(

@@ -87,6 +87,7 @@ type Booking = {
   totalAmount: number;
   status: string;
   paymentStatus?: string;
+  createdAt?: string;
   equipment?: {
     name: string;
     imageUrl: string;
@@ -181,7 +182,7 @@ function getNavigation(role: string): DashboardNavigation[] {
 
   return [
     { id: "overview", label: "Dashboard", icon: LayoutDashboard },
-    { id: "bookings", label: "My Bookings", icon: CalendarDays },
+    { id: "bookings", label: "My Rentals", icon: CalendarDays },
     { id: "favorites", label: "My Favorites", icon: Heart },
     { id: "reviews", label: "My Reviews", icon: MessageSquareText },
     { id: "profile", label: "Profile Settings", icon: Settings },
@@ -206,6 +207,7 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
     fetch("/api/customer/favorites")
       .then((response) => response.ok ? response.json() : { favorites: [] })
       .then((data) => setFavorites(data.favorites ?? []))
+      .catch(() => setFavorites([]))
       .finally(() => setFavoritesLoaded(true));
   }, [role]);
 
@@ -213,6 +215,7 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
     fetch("/api/bookings")
       .then((response) => response.ok ? response.json() : { bookings: [] })
       .then((data) => setBookings(data.bookings ?? []))
+      .catch(() => setBookings([]))
       .finally(() => setBookingsLoaded(true));
   }, []);
 
@@ -531,7 +534,7 @@ function Bookings({
         {role === "Customer" ? "Rental history" : "Marketplace bookings"}
       </p>
       <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">
-        {role === "Customer" ? "My Bookings" : role === "Owner" ? "Rental Requests" : "All Bookings"}
+        {role === "Customer" ? "My Rentals" : role === "Owner" ? "Rental Requests" : "All Bookings"}
       </h1>
       <p className="mt-2 text-[13px] text-ink/50">
         {role === "Customer"
@@ -539,7 +542,7 @@ function Bookings({
           : "Follow every rental from confirmation through completion."}
       </p>
 
-      <div className="mt-8 space-y-3">
+      <div className="mt-8">
         {!loaded ? (
           <div className="h-64 animate-pulse rounded-2xl bg-white" />
         ) : bookings.length === 0 ? (
@@ -555,6 +558,57 @@ function Bookings({
                   : "Customer bookings for your equipment will appear here."}
               </p>
             </div>
+          </div>
+        ) : role === "Customer" ? (
+          <div className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-white">
+            <Table>
+              <TableCaption className="px-4 pb-4 text-left text-[10px] text-ink/40">
+                Your equipment rental bookings.
+              </TableCaption>
+              <TableHeader>
+                <TableRow className="bg-cream/70 hover:bg-cream/70">
+                  <TableHead className="px-4 text-[10px] font-bold text-ink/55">Equipment Name</TableHead>
+                  <TableHead className="text-[10px] font-bold text-ink/55">Rental Start Date</TableHead>
+                  <TableHead className="text-[10px] font-bold text-ink/55">Rental End Date</TableHead>
+                  <TableHead className="text-[10px] font-bold text-ink/55">Booking Date</TableHead>
+                  <TableHead className="text-right text-[10px] font-bold text-ink/55">Total Amount</TableHead>
+                  <TableHead className="text-[10px] font-bold text-ink/55">Payment Status</TableHead>
+                  <TableHead className="px-4 text-[10px] font-bold text-ink/55">Booking Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {bookings.map((booking) => (
+                  <TableRow key={booking._id}>
+                    <TableCell className="max-w-52 px-4 text-[11px] font-semibold text-ink">
+                      <span className="block truncate">{booking.equipment?.name ?? "Equipment"}</span>
+                    </TableCell>
+                    <TableCell className="text-[10.5px] text-ink/60">{formatDate(booking.startDate)}</TableCell>
+                    <TableCell className="text-[10.5px] text-ink/60">{formatDate(booking.endDate)}</TableCell>
+                    <TableCell className="text-[10.5px] text-ink/60">{booking.createdAt ? formatDate(booking.createdAt) : "—"}</TableCell>
+                    <TableCell className="text-right text-[11px] font-bold">{money(booking.totalAmount)}</TableCell>
+                    <TableCell>
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-semibold capitalize ${booking.paymentStatus === "paid" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                        {booking.paymentStatus ?? "pending"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="px-4">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-semibold capitalize ${BOOKING_BADGE[booking.status] ?? "bg-ink/[0.06] text-ink/60"}`}>
+                        {booking.status}
+                      </span>
+                      {booking.status !== "cancelled" && booking.status !== "completed" ? (
+                        <button
+                          type="button"
+                          onClick={() => onStatusChange(booking._id, "cancelled")}
+                          className="ml-2 text-[9px] font-semibold text-red-500 hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      ) : null}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         ) : (
           bookings.map((booking) => (
@@ -664,12 +718,19 @@ function FavoriteEquipment({
   onRemove: (equipmentId: string) => void;
 }) {
   async function removeFavorite(equipmentId: string) {
-    await fetch("/api/favorites", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ equipmentId }),
-    });
-    onRemove(equipmentId);
+    try {
+      const response = await fetch("/api/favorites", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ equipmentId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not remove this favorite.");
+      onRemove(equipmentId);
+      toast.success("Removed from favorites.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not remove this favorite.");
+    }
   }
 
   return (
