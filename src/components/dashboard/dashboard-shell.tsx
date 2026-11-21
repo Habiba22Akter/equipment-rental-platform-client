@@ -39,6 +39,7 @@ import {
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -50,6 +51,8 @@ type DashboardUser = {
   name: string;
   email: string;
   image?: string | null;
+  phoneNumber?: string | null;
+  address?: string | null;
   role?: string | null;
 };
 
@@ -717,7 +720,10 @@ function FavoriteEquipment({
   loaded: boolean;
   onRemove: (equipmentId: string) => void;
 }) {
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
   async function removeFavorite(equipmentId: string) {
+    setRemovingId(equipmentId);
     try {
       const response = await fetch("/api/favorites", {
         method: "DELETE",
@@ -730,6 +736,8 @@ function FavoriteEquipment({
       toast.success("Removed from favorites.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not remove this favorite.");
+    } finally {
+      setRemovingId(null);
     }
   }
 
@@ -749,25 +757,57 @@ function FavoriteEquipment({
           </div>
         </div>
       ) : (
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          {favorites.map((item) => (
-            <div key={item.equipmentId} className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-white">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={item.imageUrl} alt={item.name} className="h-44 w-full object-cover" />
-              <div className="p-4">
-                <p className="text-[9px] font-bold tracking-[0.12em] text-ink/35 uppercase">{item.category}</p>
-                <h2 className="mt-1 text-[14px] font-bold">{item.name}</h2>
-                <p className="mt-2 text-[11px] text-ink/45">{item.location}</p>
-                <div className="mt-4 flex items-center justify-between">
-                  <p className="text-[14px] font-bold">${item.dailyRate}<span className="text-[10px] font-normal text-ink/40">/day</span></p>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => removeFavorite(item.equipmentId)} className="grid size-9 place-items-center rounded-lg border border-ink/10 text-red-500" aria-label="Remove favorite"><Heart className="size-4 fill-current" /></button>
-                    <Link href={`/equipment/${item.equipmentId}`} className="inline-flex h-9 items-center rounded-lg bg-ink px-3 text-[10px] font-semibold text-cream">View</Link>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="mt-8 overflow-hidden rounded-2xl border border-ink/[0.08] bg-white">
+          <Table>
+            <TableCaption className="px-4 pb-4 text-left text-[10px] text-ink/40">
+              Equipment you have saved for later.
+            </TableCaption>
+            <TableHeader>
+              <TableRow className="bg-cream/70 hover:bg-cream/70">
+                <TableHead className="px-4 text-[10px] font-bold text-ink/55">Equipment</TableHead>
+                <TableHead className="text-[10px] font-bold text-ink/55">Category</TableHead>
+                <TableHead className="text-[10px] font-bold text-ink/55">Location</TableHead>
+                <TableHead className="text-right text-[10px] font-bold text-ink/55">Daily Rate</TableHead>
+                <TableHead className="px-4 text-right text-[10px] font-bold text-ink/55">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {favorites.map((item) => (
+                <TableRow key={item.equipmentId}>
+                  <TableCell className="max-w-64 px-4">
+                    <div className="flex min-w-40 items-center gap-3">
+                      {item.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.imageUrl} alt="" className="size-11 shrink-0 rounded-lg object-cover" />
+                      ) : (
+                        <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-cream text-ink/40"><Package className="size-4" /></span>
+                      )}
+                      <span className="truncate text-[11px] font-semibold text-ink">{item.name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-[10.5px] text-ink/60">{item.category}</TableCell>
+                  <TableCell className="max-w-44 truncate text-[10.5px] text-ink/60">{item.location}</TableCell>
+                  <TableCell className="text-right text-[11px] font-bold">{money(item.dailyRate)}<span className="ml-1 text-[9px] font-medium text-ink/40">/day</span></TableCell>
+                  <TableCell className="px-4">
+                    <div className="flex justify-end gap-2">
+                      <Link href={`/equipment/${item.equipmentId}`} className="inline-flex h-8 items-center rounded-lg bg-ink px-3 text-[10px] font-semibold text-cream transition hover:bg-ink-soft">
+                        View Details
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => void removeFavorite(item.equipmentId)}
+                        disabled={removingId === item.equipmentId}
+                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-200 px-2.5 text-[10px] font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                      >
+                        <Heart className="size-3 fill-current" />
+                        {removingId === item.equipmentId ? "Removing..." : "Remove"}
+                      </button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>
@@ -1661,6 +1701,8 @@ function Profile({ user }: { user: DashboardUser }) {
   const router = useRouter();
   const [name, setName] = useState(user.name);
   const [image, setImage] = useState(user.image ?? "");
+  const [phoneNumber, setPhoneNumber] = useState(user.phoneNumber ?? "");
+  const [address, setAddress] = useState(user.address ?? "");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -1696,6 +1738,8 @@ function Profile({ user }: { user: DashboardUser }) {
       const result = await authClient.updateUser({
         name: nextName,
         image: image.trim() || null,
+        phoneNumber: phoneNumber.trim(),
+        address: address.trim(),
       });
 
       if (result.error) {
@@ -1775,6 +1819,32 @@ function Profile({ user }: { user: DashboardUser }) {
               className="text-[12px] file:mr-3 file:rounded-lg file:border-0 file:bg-cream file:px-3 file:py-2 file:text-[11px] file:font-semibold"
             />
             {uploading ? <span className="text-[10px] font-normal text-ink/40">Uploading...</span> : null}
+          </label>
+
+          <label className="grid gap-2 text-[11px] font-bold text-ink/55" htmlFor="profile-phone">
+            Phone number
+            <input
+              id="profile-phone"
+              type="tel"
+              autoComplete="tel"
+              value={phoneNumber}
+              onChange={(event) => setPhoneNumber(event.target.value)}
+              placeholder="Add your phone number"
+              className="h-11 w-full rounded-xl border border-ink/10 px-3 text-[12px] font-normal"
+            />
+          </label>
+
+          <label className="grid gap-2 text-[11px] font-bold text-ink/55 sm:col-span-2" htmlFor="profile-address">
+            Address
+            <textarea
+              id="profile-address"
+              autoComplete="street-address"
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+              placeholder="Add your street, city and region"
+              rows={3}
+              className="w-full resize-y rounded-xl border border-ink/10 px-3 py-2.5 text-[12px] font-normal"
+            />
           </label>
 
           <ProfileField label="Email address" value={user.email} />

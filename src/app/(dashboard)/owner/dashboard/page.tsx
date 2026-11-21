@@ -24,6 +24,8 @@ export default async function OwnerDashboardPage() {
         name: session.user.name,
         email: session.user.email,
         image: session.user.image,
+        phoneNumber: session.user.phoneNumber,
+        address: session.user.address,
         role: "Owner",
       }}
     />

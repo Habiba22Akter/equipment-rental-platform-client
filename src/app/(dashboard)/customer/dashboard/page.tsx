@@ -22,9 +22,12 @@ export default async function CustomerDashboardPage() {
   return (
     <DashboardShell
       user={{
+        id: session.user.id,
         name: session.user.name,
         email: session.user.email,
         image: session.user.image,
+        phoneNumber: session.user.phoneNumber,
+        address: session.user.address,
         role: "Customer",
       }}
     />

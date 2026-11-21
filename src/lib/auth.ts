@@ -92,6 +92,16 @@ export const auth = betterAuth({
         // below make sure Admin can never be self-assigned.
         input: true,
       },
+      phoneNumber: {
+        type: "string",
+        required: false,
+        input: true,
+      },
+      address: {
+        type: "string",
+        required: false,
+        input: true,
+      },
     },
   },
 
