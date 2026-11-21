@@ -1247,31 +1247,142 @@ function EmptyState({
 }
 
 function Profile({ user }: { user: DashboardUser }) {
+  const router = useRouter();
+  const [name, setName] = useState(user.name);
+  const [image, setImage] = useState(user.image ?? "");
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  async function handlePhoto(file: File) {
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetch("/api/upload", { method: "POST", body: form });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not upload the photo.");
+
+      setImage(data.url);
+      toast.success("Photo uploaded.", { description: "Save your profile to apply it." });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not upload the photo.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextName = name.trim();
+
+    if (!nextName) {
+      toast.error("Your name cannot be empty.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const result = await authClient.updateUser({
+        name: nextName,
+        image: image.trim() || null,
+      });
+
+      if (result.error) {
+        throw new Error(result.error.message || "Could not update your profile.");
+      }
+
+      toast.success("Profile updated.");
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update your profile.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div>
       <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Account</p>
       <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">Profile Settings</h1>
-      <div className="mt-8 max-w-2xl rounded-2xl border border-ink/[0.08] bg-white p-6">
+      <p className="mt-2 text-[13px] text-ink/50">
+        Update how your name and photo appear to other GearGrid members.
+      </p>
+
+      <form
+        onSubmit={handleSubmit}
+        className="mt-8 max-w-2xl rounded-2xl border border-ink/[0.08] bg-white p-6"
+      >
         <div className="flex items-center gap-4 border-b border-ink/[0.08] pb-6">
-          <span className="grid size-14 place-items-center overflow-hidden rounded-full bg-ink text-sm font-bold text-lime">
-            {user.image ? (
+          <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-full bg-ink text-sm font-bold text-lime">
+            {image ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.image} alt="" className="size-full object-cover" />
+              <img src={image} alt="" className="size-full object-cover" />
             ) : (
-              getInitials(user.name)
+              getInitials(name || user.name)
             )}
           </span>
-          <div>
-            <p className="text-[15px] font-bold">{user.name}</p>
-            <p className="mt-1 text-[12px] text-ink/45">{user.email}</p>
+          <div className="min-w-0">
+            <p className="truncate text-[15px] font-bold">{name || user.name}</p>
+            <p className="mt-1 truncate text-[12px] text-ink/45">{user.email}</p>
           </div>
         </div>
+
         <div className="grid gap-4 pt-6 sm:grid-cols-2">
-          <ProfileField label="Full name" value={user.name} />
+          <label className="grid gap-2 text-[11px] font-bold text-ink/55 sm:col-span-2" htmlFor="profile-name">
+            Full name
+            <input
+              id="profile-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              required
+              className="h-11 w-full rounded-xl border border-ink/10 px-3 text-[12px] font-normal"
+            />
+          </label>
+
+          <label className="grid gap-2 text-[11px] font-bold text-ink/55 sm:col-span-2" htmlFor="profile-photo">
+            Photo URL
+            <input
+              id="profile-photo"
+              value={image}
+              onChange={(event) => setImage(event.target.value)}
+              placeholder="https://example.com/photo.jpg"
+              className="h-11 w-full rounded-xl border border-ink/10 px-3 text-[12px] font-normal"
+            />
+          </label>
+
+          <label className="grid gap-2 text-[11px] font-bold text-ink/55 sm:col-span-2" htmlFor="profile-upload">
+            Or upload a photo
+            <input
+              id="profile-upload"
+              type="file"
+              accept="image/*"
+              disabled={uploading}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void handlePhoto(file);
+              }}
+              className="text-[12px] file:mr-3 file:rounded-lg file:border-0 file:bg-cream file:px-3 file:py-2 file:text-[11px] file:font-semibold"
+            />
+            {uploading ? <span className="text-[10px] font-normal text-ink/40">Uploading...</span> : null}
+          </label>
+
           <ProfileField label="Email address" value={user.email} />
           <ProfileField label="Account type" value={user.role ?? "Customer"} />
         </div>
-      </div>
+
+        <div className="mt-6 flex items-center justify-between gap-4 border-t border-ink/[0.08] pt-5">
+          <p className="text-[10.5px] leading-5 text-ink/35">
+            Your role is managed by GearGrid admins.
+          </p>
+          <button
+            type="submit"
+            disabled={saving || uploading}
+            className="inline-flex h-10 shrink-0 items-center rounded-xl bg-ink px-4 text-[11.5px] font-semibold text-cream disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save profile"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
