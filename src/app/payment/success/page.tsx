@@ -11,9 +11,9 @@ export default function PaymentSuccessPage() {
           <span className="mx-auto grid size-14 place-items-center rounded-full bg-lime/50 text-ink">
             <CheckCircle2 className="size-7" />
           </span>
-          <h1 className="mt-5 text-[28px] font-bold tracking-[-0.04em]">Thank you for your payment</h1>
+          <h1 className="mt-5 text-[28px] font-bold tracking-[-0.04em]">Thanks for completing checkout</h1>
           <p className="mt-3 text-[13px] leading-6 text-ink/55">
-            Stripe is confirming your payment. Your booking status will update in the dashboard after the server receives the confirmation.
+            Stripe is confirming your payment. This page does not change your booking status; the server updates it after a verified Stripe webhook arrives.
           </p>
           <Link href="/customer/dashboard" className="mt-6 inline-flex h-11 items-center gap-2 rounded-xl bg-ink px-5 text-[12px] font-semibold text-cream">
             <LayoutDashboard className="size-4" /> Go to dashboard
