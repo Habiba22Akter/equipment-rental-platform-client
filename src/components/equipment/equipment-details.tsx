@@ -96,6 +96,12 @@ export function EquipmentDetails({ equipment, reviews, role }: EquipmentDetailsP
     return Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
   }, [startDate, endDate]);
 
+  const invalidDateRange = Boolean(
+    (startDate && new Date(`${startDate}T00:00:00`).getFullYear() < new Date().getFullYear()) ||
+    (endDate && new Date(`${endDate}T00:00:00`).getFullYear() < new Date().getFullYear()) ||
+    (startDate && endDate && rentalDays === 0),
+  );
+
   const rentalUnits = useMemo(() => {
     if (!rentalDays) return 0;
     if (equipment.rentalType === "Monthly") return Math.ceil(rentalDays / 30);
@@ -144,7 +150,7 @@ export function EquipmentDetails({ equipment, reviews, role }: EquipmentDetailsP
 
   async function submitBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!isCustomer || !total || isSubmitting) return;
+    if (!isCustomer || !total || !rentalDays || invalidDateRange || isSubmitting) return;
     setIsSubmitting(true);
     const form = new FormData(event.currentTarget);
 
@@ -162,8 +168,10 @@ export function EquipmentDetails({ equipment, reviews, role }: EquipmentDetailsP
           additionalNotes: form.get("additionalNotes"),
         }),
       });
-      const data = (await response.json()) as { url?: string; error?: string };
-      if (!response.ok || !data.url) throw new Error(data.error ?? "Could not start payment.");
+      const data = (await response.json().catch(() => null)) as { url?: string; error?: string } | null;
+      if (!response.ok || !data?.url) {
+        throw new Error(data?.error ?? `Could not start payment (server returned ${response.status}).`);
+      }
       window.location.assign(data.url);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not start payment.");
@@ -431,6 +439,12 @@ export function EquipmentDetails({ equipment, reviews, role }: EquipmentDetailsP
                 </div>
               </div>
 
+              {invalidDateRange ? (
+                <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-[11px] font-medium text-rose-700">
+                  Please choose valid rental dates. The end date must be on or after the start date, with a four-digit current or future year.
+                </p>
+              ) : null}
+
               <div className="mt-5 rounded-2xl border border-ink/[0.07] bg-white p-4">
                 <div className="flex items-center justify-between text-[11px] text-ink/50">
                   <span className="flex items-center gap-1.5"><CalendarDays className="size-3.5" />Rental length</span>
@@ -448,7 +462,7 @@ export function EquipmentDetails({ equipment, reviews, role }: EquipmentDetailsP
                 </p>
               </div>
 
-              <button disabled={isSubmitting || !total || !available} type="submit" className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 text-[12px] font-bold text-cream transition hover:bg-ink-soft disabled:cursor-not-allowed disabled:opacity-45">
+              <button disabled={isSubmitting || !total || !available || invalidDateRange} type="submit" className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 text-[12px] font-bold text-cream transition hover:bg-ink-soft disabled:cursor-not-allowed disabled:opacity-45">
                 {isSubmitting ? "Opening secure checkout…" : "Continue to Stripe Checkout"}
                 <ChevronRight className="size-4" />
               </button>

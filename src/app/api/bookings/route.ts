@@ -48,29 +48,37 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (normalizeRole(session.user.role) !== "Customer") {
-    return NextResponse.json({ error: "Only customers can book equipment." }, { status: 403 });
-  }
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (normalizeRole(session.user.role) !== "Customer") {
+      return NextResponse.json({ error: "Only customers can book equipment." }, { status: 403 });
+    }
 
-  const form = await request.json();
-  const result = await serverFetch<{ bookingId: string; checkoutUrl: string }>("/api/bookings", {
-    method: "POST",
-    user: { id: session.user.id, role: "Customer" },
-    body: {
-      ...form,
-      customerName: session.user.name,
-      customerEmail: session.user.email,
-    },
-  });
+    const form = await request.json();
+    const result = await serverFetch<{ bookingId: string; checkoutUrl: string }>("/api/bookings", {
+      method: "POST",
+      user: { id: session.user.id, role: "Customer" },
+      body: {
+        ...form,
+        customerName: session.user.name,
+        customerEmail: session.user.email,
+      },
+    });
 
-  if (!result.ok || !result.data?.checkoutUrl) {
+    if (!result.ok || !result.data?.checkoutUrl) {
+      return NextResponse.json(
+        { error: result.error ?? "Could not start Stripe Checkout." },
+        { status: result.ok ? 502 : result.status },
+      );
+    }
+
+    return NextResponse.json({ bookingId: result.data.bookingId, url: result.data.checkoutUrl });
+  } catch (error) {
+    console.error("Could not start booking:", error);
     return NextResponse.json(
-      { error: result.error ?? "Could not start Stripe Checkout." },
-      { status: result.ok ? 502 : result.status },
+      { error: error instanceof Error ? error.message : "Could not start booking." },
+      { status: 502 },
     );
   }
-
-  return NextResponse.json({ bookingId: result.data.bookingId, url: result.data.checkoutUrl });
 }

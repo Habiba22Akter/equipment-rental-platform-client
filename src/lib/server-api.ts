@@ -49,12 +49,22 @@ export async function serverFetch<T>(path: string, options: ServerFetchOptions =
     throw new Error("Cannot forward user identity without a verified JWT.");
   }
 
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: options.method ?? "GET",
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    cache: options.cache ?? "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      method: options.method ?? "GET",
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      cache: options.cache ?? "no-store",
+    });
+  } catch {
+    return {
+      ok: false,
+      status: 502,
+      data: undefined,
+      error: "Could not reach the equipment server. Check its deployment URL and availability.",
+    };
+  }
 
   const payload = (await response.json().catch(() => null)) as
     | { success?: boolean; data?: T; error?: { message?: string } }
