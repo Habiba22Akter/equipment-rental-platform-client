@@ -41,7 +41,7 @@ export function EquipmentSearchForm({ children }: { children: ReactNode }) {
 
   function handleClick(event: MouseEvent<HTMLFormElement>) {
     const target = event.target;
-    if (!(target instanceof HTMLElement) || !target.closest("[data-reset-filters]")) return;
+    if (!(target instanceof Element) || !target.closest("[data-reset-filters]")) return;
 
     event.preventDefault();
     const form = formRef.current;
