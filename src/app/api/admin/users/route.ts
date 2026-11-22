@@ -36,6 +36,11 @@ export async function PATCH(request: Request) {
   const { session, error } = await adminSession();
   if (error) return error;
 
+  const demoAdminEmail = process.env.DEMO_ADMIN_EMAIL?.trim().toLowerCase();
+  if (demoAdminEmail && session.user.email.toLowerCase() === demoAdminEmail) {
+    return NextResponse.json({ error: "Demo Admin cannot change user roles." }, { status: 403 });
+  }
+
   const body = await request.json();
   const userId = typeof body.userId === "string" ? body.userId : "";
   const role = body.role;

@@ -98,6 +98,10 @@ STRIPE_WEBHOOK_SECRET=
 
 `BETTER_AUTH_SECRET` should be a long random string. On macOS/Linux you can generate one with:
 
+### Demo sign-in accounts
+
+The sign-in page has one-click Customer, Owner and Admin demo buttons. Set the server-only `DEMO_CUSTOMER_*`, `DEMO_OWNER_*` and `DEMO_ADMIN_*` variables in `.env.local`. The first click creates the configured demo account; later clicks sign in normally. Demo passwords must meet the regular password rule. The demo Admin can use the admin dashboard, but changing user roles is hidden in the UI and rejected by the server. Other real Admin accounts keep normal role-management access.
+
 ```bash
 openssl rand -base64 32
 ```

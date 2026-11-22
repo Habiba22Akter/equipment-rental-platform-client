@@ -19,6 +19,7 @@ import {
   Wheat,
 } from "lucide-react";
 import { SiteHeader } from "@/components/site/site-header";
+import { HomeActions } from "@/components/site/home-actions";
 import { MotionDiv, MotionSection } from "@/components/site/motion";
 import { auth } from "@/lib/auth";
 import { getFeaturedEquipment } from "@/lib/equipment";
@@ -147,22 +148,7 @@ export default async function HomePage() {
                 owners, book it for exactly the days you need, and get back to work.
               </p>
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Link
-                  href="/signup"
-                  className="group inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-ink px-6 text-[13.5px] font-semibold text-cream shadow-[0_16px_32px_-18px_rgba(11,31,26,0.85)] transition hover:bg-ink-soft"
-                >
-                  Start renting
-                  <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-                </Link>
-                <Link
-                  href="/signup"
-                  className="group inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-ink/12 bg-white px-6 text-[13.5px] font-semibold text-ink/70 transition hover:border-ink/25 hover:text-ink"
-                >
-                  List your equipment
-                  <ArrowUpRight className="size-4 text-ink/35 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                </Link>
-              </div>
+              <HomeActions />
 
               <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3 text-[11.5px] font-medium text-ink/45">
                 <span className="inline-flex items-center gap-1.5">
@@ -446,7 +432,7 @@ export default async function HomePage() {
                   </div>
                 ))}
                 <Link
-                  href="/signup"
+                  href="/signup?role=Owner"
                   className="group mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-lime text-[13px] font-bold text-ink transition hover:bg-lime-strong"
                 >
                   Create an owner account
@@ -458,23 +444,6 @@ export default async function HomePage() {
         </MotionSection>
       </main>
 
-      <footer className="border-t border-ink/[0.06]">
-        <div className="mx-auto flex w-full max-w-[1180px] flex-col items-center justify-between gap-4 px-5 py-8 text-[11.5px] text-ink/40 sm:flex-row sm:px-7 lg:px-10">
-          <p>© 2026 GearGrid. Built for people who make things.</p>
-          <div className="flex items-center gap-5">
-            <Link href="/signin" className="transition hover:text-ink">
-              Sign in
-            </Link>
-            <Link href="/signup" className="transition hover:text-ink">
-              Create account
-            </Link>
-            <span className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="size-3.5" />
-              Secure by design
-            </span>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

@@ -27,6 +27,9 @@ export default async function AdminDashboardPage() {
         phoneNumber: session.user.phoneNumber,
         address: session.user.address,
         role: "Admin",
+        isDemoAdmin: Boolean(
+          process.env.DEMO_ADMIN_EMAIL?.trim().toLowerCase() === session.user.email.toLowerCase(),
+        ),
       }}
     />
   );

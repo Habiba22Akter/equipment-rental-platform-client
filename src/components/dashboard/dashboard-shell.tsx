@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   DollarSign,
   Heart,
+  House,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -54,6 +55,7 @@ type DashboardUser = {
   phoneNumber?: string | null;
   address?: string | null;
   role?: string | null;
+  isDemoAdmin?: boolean;
 };
 
 type DashboardShellProps = {
@@ -218,6 +220,10 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
   const [bookingsLoaded, setBookingsLoaded] = useState(false);
   const [bookingsError, setBookingsError] = useState<string | null>(null);
 
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
   const initials = getInitials(user.name);
   const role = normalizeRole(user.role);
   const navigation = getNavigation(role);
@@ -359,6 +365,14 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
             </nav>
 
             <div className="mt-auto space-y-1">
+              <Link
+                href="/"
+                onClick={() => setIsSidebarOpen(false)}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[12.5px] font-medium text-white/55 transition hover:bg-white/[0.06] hover:text-white"
+              >
+                <House className="size-4" />
+                Back to home
+              </Link>
               <button
                 type="button"
                 onClick={handleSignOut}
@@ -422,6 +436,7 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
             {activeTab === "bookings" ? (
               <Bookings
                 role={role}
+                isDemoAdmin={user.isDemoAdmin}
                 bookings={bookings}
                 loaded={bookingsLoaded}
                 error={bookingsError}
@@ -447,7 +462,7 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
             {activeTab === "listings" ? <OwnerEquipment user={user} /> : null}
             {activeTab === "add-equipment" ? <OwnerEquipment user={user} initialOpen /> : null}
             {activeTab === "approvals" ? <AdminEquipment /> : null}
-            {activeTab === "users" ? <AdminUsers currentUserId={user.id} /> : null}
+            {activeTab === "users" ? <AdminUsers currentUserId={user.id} isDemoAdmin={user.isDemoAdmin} /> : null}
             {activeTab === "payments" ? <Payments role={role} /> : null}
           </motion.div>
         </main>
@@ -610,12 +625,14 @@ function Overview({
 
 function Bookings({
   role,
+  isDemoAdmin = false,
   bookings,
   loaded,
   error,
   onStatusChange,
 }: {
   role: string;
+  isDemoAdmin?: boolean;
   bookings: Booking[];
   loaded: boolean;
   error: string | null;
@@ -657,7 +674,9 @@ function Bookings({
       <p className="mt-2 text-[13px] text-ink/50">
         {role === "Customer"
           ? "Track, manage and review your equipment reservations."
-          : "Follow every rental from confirmation through completion."}
+          : isDemoAdmin
+            ? "Demo Admin can review rentals but cannot change booking statuses."
+            : "Follow every rental from confirmation through completion."}
       </p>
 
       <div className="mt-8">
@@ -957,19 +976,25 @@ function Bookings({
                       </span>
                     </TableCell>
                     <TableCell className="px-4">
-                      <select
-                        value={booking.status}
-                        onChange={(event) => onStatusChange(booking._id, event.target.value)}
-                        className="h-8 rounded-lg border border-ink/10 bg-white px-2 text-[9.5px] font-semibold capitalize text-ink/70"
-                        aria-label={`Booking status for ${booking.equipment?.name ?? "equipment"}`}
-                      >
-                        <option value="confirmed">Confirmed</option>
-                        <option value="active">Active</option>
-                        <option value="completed">Completed</option>
-                        {booking.paymentStatus !== "paid" || booking.status === "cancelled" ? (
-                          <option value="cancelled">Cancelled</option>
-                        ) : null}
-                      </select>
+                      {isDemoAdmin ? (
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-semibold capitalize ${BOOKING_BADGE[booking.status] ?? "bg-ink/[0.06] text-ink/60"}`}>
+                          {booking.status}
+                        </span>
+                      ) : (
+                        <select
+                          value={booking.status}
+                          onChange={(event) => onStatusChange(booking._id, event.target.value)}
+                          className="h-8 rounded-lg border border-ink/10 bg-white px-2 text-[9.5px] font-semibold capitalize text-ink/70"
+                          aria-label={`Booking status for ${booking.equipment?.name ?? "equipment"}`}
+                        >
+                          <option value="confirmed">Confirmed</option>
+                          <option value="active">Active</option>
+                          <option value="completed">Completed</option>
+                          {booking.paymentStatus !== "paid" || booking.status === "cancelled" ? (
+                            <option value="cancelled">Cancelled</option>
+                          ) : null}
+                        </select>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1755,7 +1780,7 @@ function AdminEquipment() {
     </div>
   );
 }
-function AdminUsers({ currentUserId }: { currentUserId?: string }) {
+function AdminUsers({ currentUserId, isDemoAdmin = false }: { currentUserId?: string; isDemoAdmin?: boolean }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -1801,7 +1826,9 @@ function AdminUsers({ currentUserId }: { currentUserId?: string }) {
     <div>
       <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">Community</p>
       <h1 className="mt-2 text-[2rem] font-semibold tracking-[-0.05em]">All Users</h1>
-      <p className="mt-2 text-[13px] text-ink/50">Review registered accounts and manage user roles.</p>
+      <p className="mt-2 text-[13px] text-ink/50">
+        {isDemoAdmin ? "Demo Admin access is read-only for user roles." : "Review registered accounts and manage user roles."}
+      </p>
 
       {!loaded ? (
         <div className="mt-8 h-64 animate-pulse rounded-2xl bg-white" />
@@ -1832,7 +1859,9 @@ function AdminUsers({ currentUserId }: { currentUserId?: string }) {
                     </TableCell>
                     <TableCell>{user.createdAt ? formatDate(user.createdAt) : "—"}</TableCell>
                     <TableCell>
-                      {isSelf ? (
+                      {isDemoAdmin ? (
+                        <span className="text-[10px] text-ink/35">Read-only demo</span>
+                      ) : isSelf ? (
                         <span className="text-[10px] text-ink/35">Your account</span>
                       ) : (
                         <select

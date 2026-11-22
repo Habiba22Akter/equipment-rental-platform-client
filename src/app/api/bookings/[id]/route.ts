@@ -29,6 +29,15 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const demoAdminEmail = process.env.DEMO_ADMIN_EMAIL?.trim().toLowerCase();
+  if (
+    session.user.role === "Admin" &&
+    demoAdminEmail &&
+    session.user.email.toLowerCase() === demoAdminEmail
+  ) {
+    return NextResponse.json({ error: "Demo Admin cannot change booking statuses." }, { status: 403 });
+  }
+
   const { id } = await params;
   const body = await request.json();
 

@@ -2,7 +2,6 @@
 
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   Check,
@@ -58,14 +57,13 @@ function getPasswordChecks(password: string) {
   ];
 }
 
-export function SignUpForm() {
-  const router = useRouter();
+export function SignUpForm({ initialRole = "Customer" }: { initialRole?: AccountRole }) {
   const [values, setValues] = useState<SignupValues>({
     name: "",
     email: "",
     photo: "",
     password: "",
-    role: "Customer",
+    role: initialRole,
     terms: false,
   });
   const [errors, setErrors] = useState<SignupErrors>({});
@@ -194,8 +192,7 @@ export function SignUpForm() {
             : "Welcome to GearGrid. Start exploring equipment near you.",
       });
 
-      router.replace("/");
-      router.refresh();
+      window.location.assign(values.role === "Owner" ? "/owner/dashboard?tab=listings" : "/equipment");
     } catch {
       toast.error("We could not create your account right now. Please try again.");
     } finally {

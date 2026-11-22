@@ -5,7 +5,10 @@ import { auth } from "@/lib/auth";
 
 export const instant = false;
 
-export default async function OwnerDashboardPage() {
+type OwnerDashboardPageProps = { searchParams: Promise<{ tab?: string }> };
+
+export default async function OwnerDashboardPage({ searchParams }: OwnerDashboardPageProps) {
+  const { tab } = await searchParams;
   const session = await auth.api.getSession({ headers: await headers() });
 
   if (!session?.user) redirect("/signin");
@@ -19,6 +22,7 @@ export default async function OwnerDashboardPage() {
 
   return (
     <DashboardShell
+      initialTab={tab === "listings" ? "listings" : tab === "add-equipment" ? "add-equipment" : "overview"}
       user={{
         id: session.user.id,
         name: session.user.name,

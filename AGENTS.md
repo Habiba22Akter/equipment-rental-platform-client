@@ -54,6 +54,13 @@
 - Equipment rates and booking totals are shown in BDT; Stripe charges the converted USD amount.
 - Never trust a browser-calculated total for checkout; Express recalculates it from MongoDB equipment data.
 
+## Demo sign-in
+
+- `/api/demo-signin` uses server-only `DEMO_CUSTOMER_*`, `DEMO_OWNER_*` and `DEMO_ADMIN_*` credentials.
+- On first use, the endpoint creates the configured account; later use signs in normally.
+- `DEMO_ADMIN_EMAIL` identifies the demo Admin. That account cannot change user roles in the UI or through `/api/admin/users`.
+- Real Admin accounts retain the normal role-management controls.
+
 ## Commands
 
 - `npm run dev` - start Next.js on port 3000.

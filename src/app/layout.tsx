@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Instrument_Serif, Plus_Jakarta_Sans } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { SiteFooter } from "@/components/site/site-footer";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col">
         {children}
+        <SiteFooter />
         <Toaster />
       </body>
     </html>

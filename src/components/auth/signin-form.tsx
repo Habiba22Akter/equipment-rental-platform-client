@@ -19,8 +19,18 @@ type SigninValues = {
 };
 
 type SigninErrors = Partial<Record<keyof SigninValues, string>>;
+type DemoRole = "Customer" | "Owner" | "Admin";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const demoAccounts: Array<{
+  role: DemoRole;
+  destination: string;
+}> = [
+  { role: "Customer", destination: "/customer/dashboard" },
+  { role: "Owner", destination: "/owner/dashboard?tab=listings" },
+  { role: "Admin", destination: "/admin/dashboard" },
+];
 
 export function SignInForm() {
   const router = useRouter();
@@ -38,40 +48,11 @@ export function SignInForm() {
     setErrors((current) => ({ ...current, [key]: undefined }));
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
+  async function signInAccount(email: string, password: string, destination = "/") {
     if (isSubmitting) return;
-
-    const nextErrors: SigninErrors = {};
-
-    if (!EMAIL_PATTERN.test(values.email.trim())) {
-      nextErrors.email = "Enter a valid email address.";
-    }
-    if (!values.password) {
-      nextErrors.password = "Enter your password.";
-    }
-
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) {
-      if (nextErrors.email) {
-        document.getElementById("signin-email")?.focus();
-      } else if (nextErrors.password) {
-        document.getElementById("signin-password")?.focus();
-      }
-      toast.error("Please check your details and try again.");
-      return;
-    }
-
     setIsSubmitting(true);
-
     try {
-      const { error } = await authClient.signIn.email({
-        email: values.email.trim().toLowerCase(),
-        password: values.password,
-        rememberMe: values.remember,
-      });
-
+      const { error } = await authClient.signIn.email({ email, password, rememberMe: true });
       if (error) {
         toast.error(getAuthErrorMessage(error));
         return;
@@ -81,10 +62,49 @@ export function SignInForm() {
         description: "You are signed in. Time to find the right gear.",
       });
 
-      router.replace("/");
+      router.replace(destination);
       router.refresh();
     } catch {
       toast.error("We could not sign you in right now. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextErrors: SigninErrors = {};
+    if (!EMAIL_PATTERN.test(values.email.trim())) nextErrors.email = "Enter a valid email address.";
+    if (!values.password) nextErrors.password = "Enter your password.";
+    setErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
+      if (nextErrors.email) document.getElementById("signin-email")?.focus();
+      else document.getElementById("signin-password")?.focus();
+      toast.error("Please check your details and try again.");
+      return;
+    }
+
+    await signInAccount(values.email.trim().toLowerCase(), values.password);
+  }
+
+  async function handleDemoSignIn(account: (typeof demoAccounts)[number]) {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/demo-signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: account.role }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not sign in to the demo account.");
+
+      toast.success(`Signed in as demo ${account.role}.`);
+      router.replace(account.destination);
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not sign in to the demo account.");
     } finally {
       setIsSubmitting(false);
     }
@@ -106,6 +126,24 @@ export function SignInForm() {
         <p className="mt-2 text-[13.5px] leading-6 text-ink/50">
           Pick up where you left off — bookings, saved gear and messages are all here.
         </p>
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-lime-strong/30 bg-lime/10 p-4">
+        <p className="mb-3 text-[11px] font-bold text-ink/70">Quick demo sign-in</p>
+        <div className="grid grid-cols-3 gap-2">
+          {demoAccounts.map((account) => (
+            <button
+              key={account.role}
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => void handleDemoSignIn(account)}
+              className="h-10 rounded-xl border border-ink/10 bg-white px-2 text-[11px] font-semibold text-ink/75 transition hover:border-lime-strong hover:bg-lime/10 disabled:opacity-50"
+            >
+              {account.role}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-[10px] leading-4 text-ink/45">First use creates the demo account. Demo Admin cannot change user roles.</p>
       </div>
 
       <form onSubmit={handleSubmit} noValidate aria-busy={isSubmitting} className="mt-8 space-y-5">

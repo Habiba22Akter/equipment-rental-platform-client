@@ -29,7 +29,7 @@ if (process.env.NODE_ENV !== "production") {
   globalForMongo.__gearGridMongoClient = client;
 }
 
-const db = client.db(process.env.DB_NAME ?? "equipment-rental-platform");
+export const db = client.db(process.env.DB_NAME ?? "equipment-rental-platform");
 
 /**
  * OAuth providers are only registered when both credentials exist. This keeps
