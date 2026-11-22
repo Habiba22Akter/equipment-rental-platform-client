@@ -5,7 +5,10 @@ import { auth } from "@/lib/auth";
 
 export const instant = false;
 
-export default async function CustomerDashboardPage() {
+type PageProps = { searchParams: Promise<{ tab?: string }> };
+
+export default async function CustomerDashboardPage({ searchParams }: PageProps) {
+  const { tab } = await searchParams;
   const session = await auth.api.getSession({ headers: await headers() });
 
   if (!session?.user) redirect("/signin");
@@ -21,6 +24,7 @@ export default async function CustomerDashboardPage() {
 
   return (
     <DashboardShell
+      initialTab={tab === "bookings" ? "bookings" : "overview"}
       user={{
         id: session.user.id,
         name: session.user.name,

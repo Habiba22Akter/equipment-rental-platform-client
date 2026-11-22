@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   if (!apiKey) {
     return NextResponse.json(
       {
-        error: "ImgBB uploads are not configured. Add IMGBB_API_KEY to the server environment.",
+        error: "ImgBB is not configured. Add IMGBB_API_KEY to equipment-rental-platform-client/.env and restart Next.js.",
       },
       { status: 503 },
     );

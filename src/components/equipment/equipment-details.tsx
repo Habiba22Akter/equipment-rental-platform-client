@@ -38,6 +38,7 @@ export function EquipmentDetails({ equipment, reviews, role }: EquipmentDetailsP
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [dateAvailability, setDateAvailability] = useState<{ dates: string; quantity: number } | null>(null);
 
   useEffect(() => {
     if (!isCustomer) return;
@@ -63,6 +64,30 @@ export function EquipmentDetails({ equipment, reviews, role }: EquipmentDetailsP
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isBookingOpen]);
 
+  useEffect(() => {
+    if (!startDate || !endDate) return;
+
+    const start = new Date(`${startDate}T00:00:00`);
+    const end = new Date(`${endDate}T00:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return;
+
+    const controller = new AbortController();
+    fetch(`/api/equipments/${equipment.id}/availability?startDate=${startDate}&endDate=${endDate}`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error ?? "Could not check availability.");
+        return data as { availableQuantity: number };
+      })
+      .then((data) => {
+        const dates = `${startDate}:${endDate}`;
+        setDateAvailability({ dates, quantity: data.availableQuantity });
+        setQuantity((current) => Math.min(current, Math.max(1, data.availableQuantity)));
+      })
+      .catch(() => undefined);
+
+    return () => controller.abort();
+  }, [equipment.id, endDate, startDate]);
+
   const rentalDays = useMemo(() => {
     if (!startDate || !endDate) return 0;
     const start = new Date(`${startDate}T00:00:00`);
@@ -84,11 +109,15 @@ export function EquipmentDetails({ equipment, reviews, role }: EquipmentDetailsP
       : equipment.rentalType === "Weekly"
         ? equipment.weeklyRate
         : equipment.dailyRate;
-  const total = rentalUnits * rentalRate * quantity;
+  const availabilityKey = `${startDate}:${endDate}`;
+  const availableForDates = dateAvailability?.dates === availabilityKey ? dateAvailability.quantity : null;
+  const quantityForDates = availableForDates ?? equipment.availableQuantity;
+  const selectedQuantity = Math.min(quantity, quantityForDates);
+  const total = rentalUnits * rentalRate * selectedQuantity;
   const averageRating = reviews.length
     ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
     : 0;
-  const available = equipment.availableQuantity > 0;
+  const available = quantityForDates > 0;
 
   async function toggleFavorite() {
     if (!isCustomer || isFavoriteLoading) return;
@@ -127,7 +156,7 @@ export function EquipmentDetails({ equipment, reviews, role }: EquipmentDetailsP
           equipmentId: equipment.id,
           startDate,
           endDate,
-          quantity,
+          quantity: selectedQuantity,
           contactNumber: form.get("contactNumber"),
           deliveryAddress: form.get("deliveryAddress"),
           additionalNotes: form.get("additionalNotes"),
@@ -159,7 +188,7 @@ export function EquipmentDetails({ equipment, reviews, role }: EquipmentDetailsP
             <img
               src={equipment.imageUrl}
               alt={equipment.name}
-              className="h-[290px] w-full rounded-[20px] bg-cream object-cover sm:h-[390px] lg:h-[470px]"
+              className="h-[300px] w-full rounded-[20px] bg-[#f2f1eb] object-contain sm:h-[420px] lg:h-[560px]"
             />
             <div className="absolute bottom-5 left-5 flex flex-wrap gap-2 sm:bottom-7 sm:left-7">
               <span className="rounded-full border border-white/50 bg-cream/90 px-3 py-1.5 text-[10px] font-bold text-ink/75 shadow-sm backdrop-blur">
@@ -384,8 +413,8 @@ export function EquipmentDetails({ equipment, reviews, role }: EquipmentDetailsP
                 <Field label="Rental end date" name="endDate">
                   <input id="endDate" name="endDate" required type="date" value={endDate} min={startDate || todayLocal()} onChange={(event) => setEndDate(event.target.value)} />
                 </Field>
-                <Field label={`Required quantity (max ${equipment.availableQuantity})`} name="quantity">
-                  <input id="quantity" name="quantity" required type="number" min={1} max={equipment.availableQuantity} value={quantity} onChange={(event) => setQuantity(Math.min(equipment.availableQuantity, Math.max(1, Number(event.target.value) || 1)))} />
+                <Field label={`Required quantity (max ${quantityForDates})`} name="quantity">
+                  <input id="quantity" name="quantity" required type="number" min={1} max={quantityForDates} value={selectedQuantity} onChange={(event) => setQuantity(Math.min(quantityForDates, Math.max(1, Number(event.target.value) || 1)))} />
                 </Field>
                 <Field label="Contact number" name="contactNumber">
                   <input id="contactNumber" required type="tel" name="contactNumber" placeholder="+880 1XXXXXXXXX" />
@@ -409,7 +438,7 @@ export function EquipmentDetails({ equipment, reviews, role }: EquipmentDetailsP
                 </div>
                 <div className="mt-3 flex items-end justify-between border-t border-ink/[0.07] pt-3">
                   <div>
-                    <p className="text-[10px] text-ink/45">Estimated total · {quantity} unit{quantity === 1 ? "" : "s"}</p>
+                    <p className="text-[10px] text-ink/45">Estimated total · {selectedQuantity} unit{selectedQuantity === 1 ? "" : "s"}</p>
                     <p className="mt-0.5 text-[21px] font-bold tracking-[-0.04em]">{formatPrice(total)}</p>
                   </div>
                   <p className="pb-1 text-[9px] text-ink/40">{rentalUnits || 0} {equipment.rentalType.toLowerCase()} unit{rentalUnits === 1 ? "" : "s"} × {formatPrice(rentalRate)}</p>

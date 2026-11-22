@@ -89,6 +89,11 @@ type Booking = {
   endDate: string;
   quantity: number;
   totalAmount: number;
+  rentalType?: string;
+  rentalUnits?: number;
+  contactNumber?: string;
+  deliveryAddress?: string;
+  additionalNotes?: string;
   status: string;
   paymentStatus?: string;
   createdAt?: string;
@@ -138,6 +143,10 @@ type AdminUser = {
 
 type PaymentRow = {
   _id: string;
+  bookingId?: string;
+  stripeSessionId?: string;
+  stripePaymentIntentId?: string | null;
+  amountBdt?: number;
   amount: number;
   currency?: string;
   status?: string;
@@ -192,6 +201,7 @@ function getNavigation(role: string): DashboardNavigation[] {
   return [
     { id: "overview", label: "Dashboard", icon: LayoutDashboard },
     { id: "bookings", label: "My Rentals", icon: CalendarDays },
+    { id: "payments", label: "Payments", icon: DollarSign },
     { id: "favorites", label: "My Favorites", icon: Heart },
     { id: "reviews", label: "My Reviews", icon: MessageSquareText },
     { id: "profile", label: "Profile Settings", icon: Settings },
@@ -611,6 +621,31 @@ function Bookings({
   error: string | null;
   onStatusChange: (bookingId: string, status: string) => void;
 }) {
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
+  const [bookingFilter, setBookingFilter] = useState("all");
+  const visibleBookings = role !== "Customer" || bookingFilter === "all"
+    ? bookings
+    : bookings.filter((booking) => {
+        if (bookingFilter === "confirmed") {
+          return ["confirmed", "active", "completed"].includes(booking.status);
+        }
+        return booking.status === bookingFilter;
+      });
+
+  async function continuePayment(bookingId: string) {
+    setPayingId(bookingId);
+    try {
+      const response = await fetch(`/api/bookings/${bookingId}/checkout`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok || !data.url) throw new Error(data.error ?? "Could not open checkout.");
+      window.location.assign(data.url);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not open checkout.");
+      setPayingId(null);
+    }
+  }
+
   return (
     <>
       <p className="text-[10px] font-bold tracking-[0.18em] text-ink/35 uppercase">
@@ -626,6 +661,32 @@ function Bookings({
       </p>
 
       <div className="mt-8">
+        {role === "Customer" && loaded && !error && bookings.length > 0 ? (
+          <div className="mb-5 flex flex-wrap justify-end gap-2">
+            {[
+              { value: "all", label: "All" },
+              { value: "pending", label: "Pending" },
+              { value: "confirmed", label: "Confirmed" },
+              { value: "cancelled", label: "Cancelled" },
+            ].map((filter) => (
+              <button
+                key={filter.value}
+                type="button"
+                onClick={() => setBookingFilter(filter.value)}
+                className={`rounded-full px-4 py-2 text-[11px] font-semibold transition ${bookingFilter === filter.value ? "bg-ink text-cream" : "border border-ink/10 bg-white text-ink/60 hover:bg-cream"}`}
+              >
+                {filter.label}
+                <span className="ml-1.5 opacity-70">
+                  {filter.value === "all"
+                    ? bookings.length
+                    : filter.value === "confirmed"
+                      ? bookings.filter((booking) => ["confirmed", "active", "completed"].includes(booking.status)).length
+                      : bookings.filter((booking) => booking.status === filter.value).length}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
         {!loaded ? (
           <div className="h-64 animate-pulse rounded-2xl bg-white" />
         ) : error ? (
@@ -651,7 +712,7 @@ function Bookings({
             </div>
           </div>
         ) : role === "Customer" ? (
-          <div className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-white">
+          <div className="overflow-x-auto rounded-2xl border border-ink/[0.08] bg-white">
             <Table>
               <TableCaption className="px-4 pb-4 text-left text-[10px] text-ink/40">
                 Your equipment rental bookings.
@@ -665,13 +726,29 @@ function Bookings({
                   <TableHead className="text-right text-[10px] font-bold text-ink/55">Total Amount</TableHead>
                   <TableHead className="text-[10px] font-bold text-ink/55">Payment Status</TableHead>
                   <TableHead className="px-4 text-[10px] font-bold text-ink/55">Booking Status</TableHead>
+                  <TableHead className="px-4 text-[10px] font-bold text-ink/55">Details / Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {bookings.map((booking) => (
+                {visibleBookings.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="py-10 text-center text-[12px] text-ink/45">
+                      No {bookingFilter === "all" ? "" : `${bookingFilter} `}rentals found.
+                    </TableCell>
+                  </TableRow>
+                ) : visibleBookings.map((booking) => (
                   <TableRow key={booking._id}>
                     <TableCell className="max-w-52 px-4 text-[11px] font-semibold text-ink">
-                      <span className="block truncate">{booking.equipment?.name ?? "Equipment"}</span>
+                      <span className="block whitespace-normal break-words">{booking.equipment?.name ?? "Equipment"}</span>
+                      <span className="mt-1 block text-[9px] font-normal text-ink/45">
+                        {booking.quantity} unit{booking.quantity === 1 ? "" : "s"} · {booking.rentalType ?? "Daily"}
+                      </span>
+                      <Link
+                        href={`/equipment/${booking.equipmentId}`}
+                        className="mt-2 inline-flex h-7 items-center rounded-lg border border-ink/10 px-2.5 text-[9px] font-semibold text-ink/70 hover:bg-cream"
+                      >
+                        Details
+                      </Link>
                     </TableCell>
                     <TableCell className="text-[10.5px] text-ink/60">{formatDate(booking.startDate)}</TableCell>
                     <TableCell className="text-[10.5px] text-ink/60">{formatDate(booking.endDate)}</TableCell>
@@ -679,14 +756,14 @@ function Bookings({
                     <TableCell className="text-right text-[11px] font-bold">{money(booking.totalAmount)}</TableCell>
                     <TableCell>
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-semibold capitalize ${booking.paymentStatus === "paid" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                        {booking.paymentStatus ?? "pending"}
+                        {booking.paymentStatus === "paid" ? "Paid" : booking.paymentStatus === "cancelled" ? "Cancelled" : "Unpaid"}
                       </span>
                     </TableCell>
                     <TableCell className="px-4">
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-semibold capitalize ${BOOKING_BADGE[booking.status] ?? "bg-ink/[0.06] text-ink/60"}`}>
                         {booking.status}
                       </span>
-                      {booking.status !== "cancelled" && booking.status !== "completed" ? (
+                      {booking.paymentStatus !== "paid" && booking.status !== "cancelled" && booking.status !== "completed" ? (
                         <button
                           type="button"
                           onClick={() => onStatusChange(booking._id, "cancelled")}
@@ -696,13 +773,83 @@ function Bookings({
                         </button>
                       ) : null}
                     </TableCell>
+                    <TableCell className="px-4">
+                      <details className="text-[10px] text-ink/55">
+                        <summary className="cursor-pointer font-semibold">Rental details</summary>
+                        <div className="mt-2 min-w-40 space-y-1.5 leading-4">
+                          <p>Duration: {booking.rentalUnits ?? "—"} {booking.rentalType ?? "rental"} unit(s)</p>
+                          <p>Contact: {booking.contactNumber || "Not provided"}</p>
+                          <p>Delivery: {booking.deliveryAddress || "Not provided"}</p>
+                          {booking.additionalNotes ? <p>Notes: {booking.additionalNotes}</p> : null}
+                          <p className="break-all">Booking ID: {booking._id}</p>
+                        </div>
+                      </details>
+                      {booking.paymentStatus !== "paid" && booking.status === "pending" ? (
+                        <button
+                          type="button"
+                          disabled={payingId === booking._id}
+                          onClick={() => void continuePayment(booking._id)}
+                          className="mt-2 inline-flex h-8 items-center rounded-lg bg-ink px-3 text-[10px] font-semibold text-cream disabled:opacity-50"
+                        >
+                          {payingId === booking._id ? "Opening Stripe…" : "Pay now"}
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (booking.status === "cancelled") {
+                            window.location.assign(`/payment/cancel?booking_id=${booking._id}`);
+                          } else if (booking.paymentStatus === "paid") {
+                            window.location.assign(`/payment/success?booking_id=${booking._id}`);
+                          } else {
+                            setViewingBooking(booking);
+                          }
+                        }}
+                        className="mt-2 inline-flex h-8 items-center rounded-lg border border-ink/10 px-3 text-[10px] font-semibold text-ink/70 hover:bg-cream"
+                      >
+                        View
+                      </button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            <Dialog open={Boolean(viewingBooking)} onOpenChange={(open) => { if (!open) setViewingBooking(null); }}>
+              <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Rental booking details</DialogTitle>
+                  <DialogDescription>Check your booking and payment status.</DialogDescription>
+                </DialogHeader>
+                {viewingBooking ? (
+                  <div className="space-y-3 text-[12px]">
+                    <DetailRow label="Equipment" value={viewingBooking.equipment?.name ?? "Equipment"} />
+                    <DetailRow label="Rental dates" value={`${formatDate(viewingBooking.startDate)} – ${formatDate(viewingBooking.endDate)}`} />
+                    <DetailRow label="Quantity" value={`${viewingBooking.quantity} unit${viewingBooking.quantity === 1 ? "" : "s"}`} />
+                    <DetailRow label="Total" value={money(viewingBooking.totalAmount)} />
+                    <DetailRow label="Booking status" value={viewingBooking.status} />
+                    <DetailRow label="Payment status" value={viewingBooking.paymentStatus ?? "unpaid"} />
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {viewingBooking.paymentStatus !== "paid" && viewingBooking.status === "pending" ? (
+                        <button
+                          type="button"
+                          disabled={payingId === viewingBooking._id}
+                          onClick={() => void continuePayment(viewingBooking._id)}
+                          className="inline-flex h-10 items-center rounded-xl bg-ink px-4 text-[11px] font-semibold text-cream disabled:opacity-50"
+                        >
+                          {payingId === viewingBooking._id ? "Opening Stripe…" : "Pay now"}
+                        </button>
+                      ) : null}
+                      <Link href={`/equipment/${viewingBooking.equipmentId}`} className="inline-flex h-10 items-center rounded-xl border border-ink/10 px-4 text-[11px] font-semibold text-ink/70 hover:bg-cream">
+                        View equipment
+                      </Link>
+                    </div>
+                  </div>
+                ) : null}
+              </DialogContent>
+            </Dialog>
           </div>
         ) : role === "Owner" ? (
-          <div className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-white">
+          <div className="overflow-x-auto rounded-2xl border border-ink/[0.08] bg-white">
             <Table>
               <TableCaption className="px-4 pb-4 text-left text-[10px] text-ink/40">
                 Rentals booked for equipment you own.
@@ -722,8 +869,8 @@ function Bookings({
                 {bookings.map((booking) => (
                   <TableRow key={booking._id}>
                     <TableCell className="max-w-48 px-4">
-                      <p className="truncate text-[11px] font-semibold text-ink">{booking.customerName ?? "Customer"}</p>
-                      <p className="mt-1 truncate text-[10px] text-ink/45">{booking.customerEmail ?? "Email unavailable"}</p>
+                      <p className="whitespace-normal break-words text-[11px] font-semibold text-ink">{booking.customerName ?? "Customer"}</p>
+                      <p className="mt-1 whitespace-normal break-all text-[10px] text-ink/45">{booking.customerEmail ?? "Email unavailable"}</p>
                     </TableCell>
                     <TableCell className="max-w-52">
                       <div className="flex min-w-40 items-center gap-2.5">
@@ -734,8 +881,8 @@ function Bookings({
                           <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-cream text-ink/40"><Package className="size-4" /></span>
                         )}
                         <div className="min-w-0">
-                          <p className="truncate text-[11px] font-semibold">{booking.equipment?.name ?? "Equipment"}</p>
-                          <p className="mt-1 truncate text-[9px] text-ink/45">{booking.equipment?.category ?? "Equipment"}</p>
+                          <p className="whitespace-normal break-words text-[11px] font-semibold">{booking.equipment?.name ?? "Equipment"}</p>
+                          <p className="mt-1 whitespace-normal break-words text-[9px] text-ink/45">{booking.equipment?.category ?? "Equipment"}</p>
                         </div>
                       </div>
                     </TableCell>
@@ -760,7 +907,9 @@ function Bookings({
                         <option value="confirmed">Confirmed</option>
                         <option value="active">Active</option>
                         <option value="completed">Completed</option>
-                        <option value="cancelled">Cancelled</option>
+                        {booking.paymentStatus !== "paid" || booking.status === "cancelled" ? (
+                          <option value="cancelled">Cancelled</option>
+                        ) : null}
                       </select>
                     </TableCell>
                   </TableRow>
@@ -769,7 +918,7 @@ function Bookings({
             </Table>
           </div>
         ) : role === "Admin" ? (
-          <div className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-white">
+          <div className="overflow-x-auto rounded-2xl border border-ink/[0.08] bg-white">
             <Table>
               <TableCaption className="px-4 pb-4 text-left text-[10px] text-ink/40">
                 All rental bookings across the marketplace.
@@ -789,19 +938,19 @@ function Bookings({
                 {bookings.map((booking) => (
                   <TableRow key={booking._id}>
                     <TableCell className="max-w-48 px-4">
-                      <p className="truncate text-[10.5px] font-semibold text-ink">{booking.customerName ?? "Customer"}</p>
-                      <p className="mt-1 truncate text-[9.5px] text-ink/45">{booking.customerEmail ?? "Email unavailable"}</p>
+                      <p className="whitespace-normal break-words text-[10.5px] font-semibold text-ink">{booking.customerName ?? "Customer"}</p>
+                      <p className="mt-1 whitespace-normal break-all text-[9.5px] text-ink/45">{booking.customerEmail ?? "Email unavailable"}</p>
                     </TableCell>
                     <TableCell className="max-w-48">
-                      <p className="truncate text-[10.5px] font-semibold text-ink">{booking.equipment?.ownerName ?? "Owner"}</p>
-                      <p className="mt-1 truncate text-[9.5px] text-ink/45">{booking.equipment?.ownerEmail || "Email unavailable"}</p>
+                      <p className="whitespace-normal break-words text-[10.5px] font-semibold text-ink">{booking.equipment?.ownerName ?? "Owner"}</p>
+                      <p className="mt-1 whitespace-normal break-all text-[9.5px] text-ink/45">{booking.equipment?.ownerEmail || "Email unavailable"}</p>
                     </TableCell>
-                    <TableCell className="max-w-48 text-[10.5px] font-semibold">{booking.equipment?.name ?? "Equipment"}</TableCell>
-                    <TableCell className="whitespace-nowrap text-[9.5px] leading-5 text-ink/60">
+                    <TableCell className="max-w-48 whitespace-normal break-words text-[10.5px] font-semibold">{booking.equipment?.name ?? "Equipment"}</TableCell>
+                    <TableCell className="text-[9.5px] leading-5 text-ink/60">
                       <span className="block">From {formatDate(booking.startDate)}</span>
                       <span className="block">To {formatDate(booking.endDate)}</span>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-right text-[10.5px] font-bold">{money(booking.totalAmount)}</TableCell>
+                    <TableCell className="text-right text-[10.5px] font-bold">{money(booking.totalAmount)}</TableCell>
                     <TableCell>
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-semibold capitalize ${booking.paymentStatus === "paid" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
                         {booking.paymentStatus ?? "pending"}
@@ -817,7 +966,9 @@ function Bookings({
                         <option value="confirmed">Confirmed</option>
                         <option value="active">Active</option>
                         <option value="completed">Completed</option>
-                        <option value="cancelled">Cancelled</option>
+                        {booking.paymentStatus !== "paid" || booking.status === "cancelled" ? (
+                          <option value="cancelled">Cancelled</option>
+                        ) : null}
                       </select>
                     </TableCell>
                   </TableRow>
@@ -896,10 +1047,10 @@ function BookingRow({
             <option value="confirmed">Confirmed</option>
             <option value="active">Active</option>
             <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
+            {booking.paymentStatus !== "paid" ? <option value="cancelled">Cancelled</option> : null}
           </select>
         ) : null}
-        {detailed && role === "Customer" && onStatusChange && booking.status !== "cancelled" && booking.status !== "completed" ? (
+        {detailed && role === "Customer" && onStatusChange && booking.paymentStatus !== "paid" && booking.status !== "cancelled" && booking.status !== "completed" ? (
           <button
             type="button"
             onClick={() => onStatusChange(booking._id, "cancelled")}
@@ -969,7 +1120,7 @@ function FavoriteEquipment({
           </div>
         </div>
       ) : (
-        <div className="mt-8 overflow-hidden rounded-2xl border border-ink/[0.08] bg-white">
+        <div className="mt-8 overflow-x-auto rounded-2xl border border-ink/[0.08] bg-white">
           <Table>
             <TableCaption className="px-4 pb-4 text-left text-[10px] text-ink/40">
               Equipment you have saved for later.
@@ -987,18 +1138,18 @@ function FavoriteEquipment({
               {favorites.map((item) => (
                 <TableRow key={item.equipmentId}>
                   <TableCell className="max-w-64 px-4">
-                    <div className="flex min-w-40 items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
                       {item.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={item.imageUrl} alt="" className="size-11 shrink-0 rounded-lg object-cover" />
                       ) : (
                         <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-cream text-ink/40"><Package className="size-4" /></span>
                       )}
-                      <span className="truncate text-[11px] font-semibold text-ink">{item.name}</span>
+                      <span className="whitespace-normal break-words text-[11px] font-semibold text-ink">{item.name}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-[10.5px] text-ink/60">{item.category}</TableCell>
-                  <TableCell className="max-w-44 truncate text-[10.5px] text-ink/60">{item.location}</TableCell>
+                  <TableCell className="max-w-44 whitespace-normal break-words text-[10.5px] text-ink/60">{item.location}</TableCell>
                   <TableCell className="text-right text-[11px] font-bold">{money(item.dailyRate)}<span className="ml-1 text-[9px] font-medium text-ink/40">/day</span></TableCell>
                   <TableCell className="px-4">
                     <div className="flex justify-end gap-2">
@@ -1031,6 +1182,9 @@ function OwnerEquipment({ user, initialOpen = false }: { user: DashboardUser; in
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(initialOpen);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<{ url: string; name: string } | null>(null);
+  const [imageUploadState, setImageUploadState] = useState<"idle" | "uploading" | "error">("idle");
+  const [imageUploadError, setImageUploadError] = useState("");
   const [editing, setEditing] = useState<EquipmentRow | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -1069,16 +1223,36 @@ function OwnerEquipment({ user, initialOpen = false }: { user: DashboardUser; in
     return data.url as string;
   }
 
+  async function handleImageSelect(file?: File) {
+    setUploadedImage(null);
+    setImageUploadError("");
+    if (!file) {
+      setImageUploadState("idle");
+      return;
+    }
+
+    setImageUploadState("uploading");
+    try {
+      const url = await uploadImage(file);
+      setUploadedImage({ url, name: file.name });
+      setImageUploadState("idle");
+      toast.success("Equipment image uploaded to ImgBB.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not upload image.";
+      setImageUploadError(message);
+      setImageUploadState("error");
+      toast.error(message);
+    }
+  }
+
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const file = formData.get("image");
 
     try {
-      if (!(file instanceof File) || file.size === 0) throw new Error("Choose an equipment image to upload.");
-      const imageUrl = await uploadImage(file);
+      if (!uploadedImage) throw new Error("Choose an image and wait for its ImgBB upload to finish.");
 
       const response = await fetch("/api/owner/equipments", {
         method: "POST",
@@ -1091,7 +1265,7 @@ function OwnerEquipment({ user, initialOpen = false }: { user: DashboardUser; in
           model: formData.get("model"),
           condition: formData.get("condition"),
           location: formData.get("location"),
-          imageUrl,
+          imageUrl: uploadedImage.url,
           rentalPrice: Number(formData.get("rentalPrice")),
           rentalType: formData.get("rentalType"),
           availableQuantity: Number(formData.get("availableQuantity")),
@@ -1103,6 +1277,9 @@ function OwnerEquipment({ user, initialOpen = false }: { user: DashboardUser; in
 
       toast.success("Equipment submitted.", { description: "It is waiting for admin approval." });
       form.reset();
+      setUploadedImage(null);
+      setImageUploadState("idle");
+      setImageUploadError("");
       setOpen(false);
       await loadEquipment();
     } catch (error) {
@@ -1224,7 +1401,37 @@ function OwnerEquipment({ user, initialOpen = false }: { user: DashboardUser; in
               <OwnerField label="Rental price (BDT)" name="rentalPrice"><input required name="rentalPrice" type="number" min="0.01" step="0.01" placeholder="500" /></OwnerField>
               <OwnerField label="Available quantity" name="availableQuantity"><input required name="availableQuantity" type="number" min="1" step="1" defaultValue="1" /></OwnerField>
               <div className="sm:col-span-2"><OwnerField label="Rental terms and conditions" name="terms"><textarea required name="terms" rows={3} placeholder="Pickup, damage policy, late return..." /></OwnerField></div>
-              <div className="sm:col-span-2"><OwnerField label="Equipment image (ImgBB upload)" name="image"><input required name="image" type="file" accept="image/*" /></OwnerField><p className="mt-1 text-[10px] text-ink/40">Upload one image up to 5 MB. The image is hosted on ImgBB.</p></div>
+              <div className="sm:col-span-2">
+                <OwnerField label="Equipment image (upload from device to ImgBB)" name="image">
+                  <input
+                    name="image"
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = "";
+                      void handleImageSelect(file);
+                    }}
+                  />
+                </OwnerField>
+                <p className="mt-1 text-[10px] text-ink/40">Choose an image from your device. It uploads to ImgBB before the equipment is saved. Maximum size: 5 MB.</p>
+                {imageUploadState === "uploading" ? (
+                  <p className="mt-2 text-[11px] font-medium text-ink/60">Uploading to ImgBB…</p>
+                ) : null}
+                {imageUploadError ? (
+                  <p role="alert" className="mt-2 text-[11px] text-red-600">{imageUploadError}</p>
+                ) : null}
+                {uploadedImage ? (
+                  <div className="mt-3 flex items-center gap-3 rounded-xl border border-ink/10 bg-cream/70 p-2.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={uploadedImage.url} alt="Selected equipment" className="size-14 rounded-lg object-cover" />
+                    <div className="min-w-0">
+                      <p className="truncate text-[11px] font-semibold">{uploadedImage.name}</p>
+                      <p className="mt-1 text-[10px] text-emerald-700">Uploaded and ready to save</p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
               <div className="sm:col-span-2 rounded-xl border border-ink/10 bg-cream/70 p-3 text-[11px] text-ink/60">
                 <p className="font-bold text-ink">Owner information</p>
                 <p className="mt-1">{user.name} · {user.email}</p>
@@ -1233,8 +1440,8 @@ function OwnerEquipment({ user, initialOpen = false }: { user: DashboardUser; in
                 <span className="font-semibold text-amber-800">Listing status</span>
                 <span className="rounded-full bg-amber-100 px-2.5 py-1 font-bold text-amber-800">Pending admin approval</span>
               </div>
-              <button disabled={submitting} type="submit" className="sm:col-span-2 h-11 rounded-xl bg-ink text-[12px] font-semibold text-cream disabled:opacity-50">
-                {submitting ? "Adding equipment..." : "Add equipment"}
+              <button disabled={submitting || imageUploadState === "uploading" || !uploadedImage} type="submit" className="sm:col-span-2 h-11 rounded-xl bg-ink text-[12px] font-semibold text-cream disabled:opacity-50">
+                {submitting ? "Adding equipment..." : imageUploadState === "uploading" ? "Uploading image..." : "Add equipment"}
               </button>
             </form>
           </DialogContent>
@@ -1297,7 +1504,15 @@ function OwnerEquipment({ user, initialOpen = false }: { user: DashboardUser; in
         </div>
       ) : (
         <div className="mt-8 overflow-x-auto rounded-2xl border border-ink/[0.08] bg-white">
-          <Table>
+          <Table className="min-w-[1250px] table-fixed">
+            <colgroup>
+              <col className="w-[300px]" />
+              <col className="w-[190px]" />
+              <col className="w-[200px]" />
+              <col className="w-[140px]" />
+              <col className="w-[120px]" />
+              <col className="w-[300px]" />
+            </colgroup>
             <TableHeader>
               <TableRow>
                 <TableHead>Equipment Name</TableHead><TableHead>Category</TableHead><TableHead>Rental Price</TableHead><TableHead>Available Quantity</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead>
@@ -1315,17 +1530,17 @@ function OwnerEquipment({ user, initialOpen = false }: { user: DashboardUser; in
                     : dailyRate;
                 return (
                   <TableRow key={item._id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
+                    <TableCell className="whitespace-normal">
+                      <div className="flex min-w-0 items-center gap-3">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={item.imageUrl ?? item.image ?? ""} alt="" className="size-12 rounded-xl object-cover" />
-                        <div>
-                          <span className="font-bold">{item.name}</span>
-                          <p className="mt-1 text-[10px] text-ink/45">{[item.brand, item.model].filter(Boolean).join(" · ") || "Brand/model not provided"}</p>
+                        <img src={item.imageUrl ?? item.image ?? ""} alt="" className="size-12 shrink-0 rounded-xl object-cover" />
+                        <div className="min-w-0 flex-1">
+                          <span className="block break-words font-bold" title={item.name}>{item.name}</span>
+                          <p className="mt-1 break-words text-[10px] text-ink/45" title={[item.brand, item.model].filter(Boolean).join(" · ")}>{[item.brand, item.model].filter(Boolean).join(" · ") || "Brand/model not provided"}</p>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>{item.category}</TableCell>
+                    <TableCell className="whitespace-normal break-words">{item.category}</TableCell>
                     <TableCell>{money(rentalPrice)} / {rentalType.toLowerCase()}</TableCell>
                     <TableCell>{item.availableQuantity ?? item.quantity ?? 1}</TableCell>
                     <TableCell>
@@ -1484,17 +1699,17 @@ function AdminEquipment() {
                 return (
                   <TableRow key={item._id}>
                     <TableCell className="max-w-56">
-                      <div className="flex min-w-40 items-center gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
                         {item.imageUrl || item.image ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={item.imageUrl ?? item.image} alt="" className="size-11 shrink-0 rounded-lg object-cover" />
                         ) : <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-cream text-ink/40"><Package className="size-4" /></span>}
-                        <span className="truncate text-[11px] font-semibold">{item.name}</span>
+                        <span className="whitespace-normal break-words text-[11px] font-semibold">{item.name}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-[10.5px] text-ink/60">{item.category}</TableCell>
-                    <TableCell className="text-[10.5px] text-ink/60">{item.ownerName ?? 'Unknown owner'}</TableCell>
-                    <TableCell className="whitespace-nowrap text-[10.5px] font-semibold">{money(rentalPrice)} / {rentalType.toLowerCase()}</TableCell>
+                    <TableCell className="whitespace-normal break-words text-[10.5px] text-ink/60">{item.category}</TableCell>
+                    <TableCell className="whitespace-normal break-words text-[10.5px] text-ink/60">{item.ownerName ?? 'Unknown owner'}</TableCell>
+                    <TableCell className="whitespace-normal break-words text-[10.5px] font-semibold">{money(rentalPrice)} / {rentalType.toLowerCase()}</TableCell>
                     <TableCell className="text-[10.5px]">{item.availableQuantity ?? item.quantity ?? 1}</TableCell>
                     <TableCell><span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-bold capitalize ${APPROVAL_BADGE[status] ?? 'bg-amber-50 text-amber-700'}`}>{status}</span></TableCell>
                     <TableCell>
@@ -1611,7 +1826,7 @@ function AdminUsers({ currentUserId }: { currentUserId?: string }) {
                     <TableCell>
                       <span className="font-bold">{user.name ?? "Unnamed user"}</span>
                     </TableCell>
-                    <TableCell>{user.email ?? "—"}</TableCell>
+                    <TableCell className="whitespace-normal break-all">{user.email ?? "—"}</TableCell>
                     <TableCell>
                       <span className="rounded-full bg-cream px-2.5 py-1 text-[9px] font-bold">{role}</span>
                     </TableCell>
@@ -1750,6 +1965,16 @@ function Payments({ role }: { role: string }) {
                   {payment.status ?? "paid"}
                 </span>
                 <p className="text-[15px] font-bold">{money(payment.amount, payment.currency ?? "USD")}</p>
+                <details className="text-[10px] text-ink/50">
+                  <summary className="cursor-pointer font-semibold">Details</summary>
+                  <div className="mt-2 space-y-1.5 leading-4">
+                    {payment.amountBdt !== undefined ? <p>Original booking total: {money(payment.amountBdt, "BDT")}</p> : null}
+                    {payment.bookingId ? <p className="break-all">Booking ID: {payment.bookingId}</p> : null}
+                    {payment.stripePaymentIntentId ? <p className="break-all">Stripe transaction: {payment.stripePaymentIntentId}</p> : null}
+                    {payment.stripeSessionId ? <p className="break-all">Checkout session: {payment.stripeSessionId}</p> : null}
+                    <p>Payment record: {payment._id}</p>
+                  </div>
+                </details>
               </div>
             </div>
           ))}
@@ -2221,6 +2446,15 @@ function ProfileField({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-[10px] font-bold tracking-[0.1em] text-ink/35 uppercase">{label}</p>
       <p className="mt-2 rounded-xl border border-ink/10 bg-cream px-3.5 py-3 text-[12px] text-ink/70">{value}</p>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-wrap justify-between gap-2 border-b border-ink/[0.08] py-2.5 last:border-0">
+      <span className="text-ink/50">{label}</span>
+      <span className="break-words font-semibold capitalize text-ink/80">{value}</span>
     </div>
   );
 }
