@@ -29,6 +29,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import { normalizeRole } from "@/lib/roles";
+import { ThemeToggle } from "@/components/site/theme-toggle";
 import {
   Dialog,
   DialogContent,
@@ -409,6 +410,7 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
             </nav>
 
             <div className="mt-auto space-y-1">
+              <ThemeToggle compact />
               <Link
                 href="/"
                 onClick={() => setIsSidebarOpen(false)}
@@ -731,6 +733,8 @@ function Bookings({
   const [payingId, setPayingId] = useState<string | null>(null);
   const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
   const [bookingFilter, setBookingFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
   const visibleBookings = role !== "Customer" || bookingFilter === "all"
     ? bookings
     : bookings.filter((booking) => {
@@ -739,6 +743,8 @@ function Bookings({
         }
         return booking.status === bookingFilter;
       });
+  const totalPages = Math.max(1, Math.ceil(visibleBookings.length / pageSize));
+  const pageBookings = visibleBookings.slice((page - 1) * pageSize, page * pageSize);
 
   async function continuePayment(bookingId: string) {
     setPayingId(bookingId);
@@ -781,7 +787,7 @@ function Bookings({
               <button
                 key={filter.value}
                 type="button"
-                onClick={() => setBookingFilter(filter.value)}
+                onClick={() => { setBookingFilter(filter.value); setPage(1); }}
                 className={`rounded-full px-4 py-2 text-[11px] font-semibold transition ${bookingFilter === filter.value ? "bg-ink text-cream" : "border border-ink/10 bg-white text-ink/60 hover:bg-cream"}`}
               >
                 {filter.label}
@@ -839,13 +845,13 @@ function Bookings({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleBookings.length === 0 ? (
+                {pageBookings.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="py-10 text-center text-[12px] text-ink/45">
                       No {bookingFilter === "all" ? "" : `${bookingFilter} `}rentals found.
                     </TableCell>
                   </TableRow>
-                ) : visibleBookings.map((booking) => (
+                ) : pageBookings.map((booking) => (
                   <TableRow key={booking._id}>
                     <TableCell className="max-w-52 px-4 text-[11px] font-semibold text-ink">
                       <span className="block whitespace-normal break-words">{booking.equipment?.name ?? "Equipment"}</span>
@@ -975,7 +981,7 @@ function Bookings({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {bookings.map((booking) => (
+                {pageBookings.map((booking) => (
                   <TableRow key={booking._id}>
                     <TableCell className="max-w-48 px-4">
                       <p className="whitespace-normal break-words text-[11px] font-semibold text-ink">{booking.customerName ?? "Customer"}</p>
@@ -1044,7 +1050,7 @@ function Bookings({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {bookings.map((booking) => (
+                {pageBookings.map((booking) => (
                   <TableRow key={booking._id}>
                     <TableCell className="max-w-48 px-4">
                       <p className="whitespace-normal break-words text-[10.5px] font-semibold text-ink">{booking.customerName ?? "Customer"}</p>
@@ -1092,7 +1098,7 @@ function Bookings({
             </Table>
           </div>
         ) : (
-          bookings.map((booking) => (
+          pageBookings.map((booking) => (
             <BookingRow
               key={booking._id}
               booking={booking}
@@ -1102,6 +1108,15 @@ function Bookings({
             />
           ))
         )}
+        {loaded && !error && totalPages > 1 ? (
+          <div className="mt-3 flex items-center justify-between rounded-xl border border-ink/[0.08] bg-white px-4 py-3 text-[11px]">
+            <span className="text-ink/50">Page {page} of {totalPages}</span>
+            <div className="flex gap-2">
+              <button type="button" disabled={page === 1} onClick={() => setPage(page - 1)} className="rounded-lg border border-ink/10 px-3 py-1.5 disabled:opacity-40">Previous</button>
+              <button type="button" disabled={page === totalPages} onClick={() => setPage(page + 1)} className="rounded-lg border border-ink/10 px-3 py-1.5 disabled:opacity-40">Next</button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </>
   );

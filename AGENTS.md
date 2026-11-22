@@ -79,6 +79,13 @@
 - Admin and Owner dashboard overview cards and six-month summaries load from the authenticated `/api/analytics` proxy.
 - The Express endpoint calculates values from MongoDB. Admins see platform-wide counts, pending approvals, paid BDT revenue and monthly booking counts; Owners see only their own listing, completed rental and paid BDT earnings data.
 
+## Optional assignment features
+
+- The public `/equipment` page requests nine records at a time from the Express paginated equipment API and preserves active search/filter parameters when moving between pages.
+- Customer, Owner and Admin booking history views show pagination controls when results exceed one page.
+- The site header and dashboard sidebar include a theme toggle. The selected light/dark preference is saved as `geargrid-theme` in localStorage.
+- Paid booking completion is performed by the Express scheduled task; production uses the Vercel cron endpoint. Completion email delivery is configured on the server with Resend and requires server environment variables.
+
 ## Commands
 
 - `npm run dev` - start Next.js on port 3000.

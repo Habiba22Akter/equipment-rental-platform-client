@@ -40,6 +40,9 @@ Renting equipment is still often handled through phone calls, screenshots and un
 - Stripe Checkout, raw-body webhook verification, BDT-to-USD conversion and saved payment records.
 - Customer, owner and admin dashboards with role-protected Next.js routes and Express authorization.
 - Reviews and ratings for completed rentals.
+- The All Equipment page uses server-side pagination (nine cards per page); booking history uses paged results in all role dashboards.
+- A light/dark theme toggle saves the visitor's choice in localStorage.
+- Paid rentals are marked completed by the server's scheduled job. The server can email both parties through Resend after completion.
 
 ## Tech Stack
 

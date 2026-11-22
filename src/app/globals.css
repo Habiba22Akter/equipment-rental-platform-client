@@ -124,6 +124,17 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* GearGrid uses brand utility classes, so these small overrides theme its common surfaces. */
+.dark body { background: #101a16; color: #edf2ee; }
+.dark .bg-cream { background-color: #101a16 !important; }
+.dark .bg-white { background-color: #192722 !important; }
+.dark [class*="bg-cream/"] { background-color: rgb(16 26 22 / 88%) !important; }
+.dark [class*="bg-white/"] { background-color: rgb(25 39 34 / 88%) !important; }
+.dark [class*="text-ink"] { color: #e5eee8 !important; }
+.dark [class*="border-ink"] { border-color: rgb(220 236 226 / 16%) !important; }
+.dark input, .dark textarea, .dark select { color: #edf2ee; }
+.dark input::placeholder, .dark textarea::placeholder { color: #9baaa1; }
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

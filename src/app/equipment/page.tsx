@@ -113,6 +113,8 @@ export default async function EquipmentListPage({ searchParams }: { searchParams
     : "all";
   const sortValue = first(params.sort);
   const sort = sortValue === "price-asc" || sortValue === "price-desc" ? sortValue : "newest";
+  const page = Math.max(1, Number(first(params.page)) || 1);
+  const pageSize = 9;
   const invalidPriceRange = minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice;
 
   const equipmentQuery = new URLSearchParams();
@@ -123,16 +125,20 @@ export default async function EquipmentListPage({ searchParams }: { searchParams
   if (maxPrice !== undefined) equipmentQuery.set("maxPrice", String(maxPrice));
   if (availability !== "all") equipmentQuery.set("availability", availability);
   equipmentQuery.set("sort", sort);
+  equipmentQuery.set("page", String(page));
+  equipmentQuery.set("pageSize", String(pageSize));
 
   const [session, equipmentResult] = await Promise.all([
     auth.api.getSession({ headers: await headers() }),
     invalidPriceRange
-      ? Promise.resolve({ ok: true, status: 200, data: [] as EquipmentApiRecord[], error: undefined })
-      : requestEquipmentApi<EquipmentApiRecord[]>(`/api/equipments?${equipmentQuery.toString()}`),
+      ? Promise.resolve({ ok: true, status: 200, data: { items: [] as EquipmentApiRecord[], total: 0 }, error: undefined })
+      : requestEquipmentApi<{ items: EquipmentApiRecord[]; total: number }>(`/api/equipments?${equipmentQuery.toString()}`),
   ]);
   const equipment = equipmentResult.ok
-    ? (equipmentResult.data ?? []).map(toEquipmentCard).filter((item): item is FeaturedEquipment => Boolean(item))
+    ? (equipmentResult.data?.items ?? []).map(toEquipmentCard).filter((item): item is FeaturedEquipment => Boolean(item))
     : [];
+  const totalEquipment = equipmentResult.ok ? equipmentResult.data?.total ?? 0 : 0;
+  const totalPages = Math.max(1, Math.ceil(totalEquipment / pageSize));
   const equipmentError = equipmentResult.ok ? "" : equipmentResult.error ?? "Could not load equipment right now.";
   const categoryOptions = defaultCategories;
   const viewHref = (id: string) => (session?.user ? `/equipment/${id}` : "/signin");
@@ -265,7 +271,7 @@ export default async function EquipmentListPage({ searchParams }: { searchParams
                   <p className="mt-1 text-[10px] text-ink/40">
                     {invalidPriceRange
                       ? "Minimum price must be lower than maximum price."
-                      : `${equipment.length} listing${equipment.length === 1 ? "" : "s"} found`}
+                      : `${totalEquipment} listing${totalEquipment === 1 ? "" : "s"} found`}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 text-[10px] font-medium text-ink/45">
@@ -301,6 +307,7 @@ export default async function EquipmentListPage({ searchParams }: { searchParams
                   </div>
                 </div>
               ) : (
+                <>
                 <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {equipment.map((item) => {
                     const rentalPrice = item.rentalType === "Weekly"
@@ -349,6 +356,24 @@ export default async function EquipmentListPage({ searchParams }: { searchParams
                     );
                   })}
                 </div>
+                {totalPages > 1 ? (
+                  <nav aria-label="Equipment pages" className="mt-6 flex items-center justify-between">
+                    <span className="text-xs text-ink/55">Page {page} of {totalPages}</span>
+                    <div className="flex gap-2">
+                      {[page - 1, page + 1].map((target) => {
+                        const enabled = target >= 1 && target <= totalPages;
+                        const nextParams = new URLSearchParams(equipmentQuery);
+                        nextParams.set("page", String(target));
+                        return enabled ? (
+                          <Link key={target} href={`/equipment?${nextParams.toString()}`} className="rounded-lg border border-ink/10 bg-white px-3 py-2 text-xs font-semibold">
+                            {target < page ? "Previous" : "Next"}
+                          </Link>
+                        ) : null;
+                      })}
+                    </div>
+                  </nav>
+                ) : null}
+                </>
               )}
             </section>
           </div>

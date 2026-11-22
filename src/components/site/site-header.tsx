@@ -9,6 +9,7 @@ import { authClient, useSession } from "@/lib/auth-client";
 import { BrandMark } from "@/components/auth/brand-mark";
 import { cn } from "cn";
 import { normalizeRole } from "@/lib/roles";
+import { ThemeToggle } from "@/components/site/theme-toggle";
 
 const navigation = [
   { href: "/", label: "Home" },
@@ -82,6 +83,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2.5">
+          <ThemeToggle />
           {isPending ? (
             <span className="h-9 w-32 animate-pulse rounded-full bg-ink/[0.06]" />
           ) : user ? (
