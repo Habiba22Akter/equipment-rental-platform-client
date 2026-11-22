@@ -42,9 +42,11 @@ export function SiteHeader() {
     setIsSigningOut(true);
 
     try {
-      await authClient.signOut();
+      const result = await authClient.signOut();
+      if (result.error) throw new Error(result.error.message);
       toast.success("Signed out.", { description: "See you next time." });
       setIsMenuOpen(false);
+      router.replace("/");
       router.refresh();
     } catch {
       toast.error("Could not sign out. Please try again.");

@@ -263,9 +263,14 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
   }
 
   async function handleSignOut() {
-    await authClient.signOut();
-    router.push("/");
-    router.refresh();
+    try {
+      const result = await authClient.signOut();
+      if (result.error) throw new Error(result.error.message);
+      router.replace("/");
+      router.refresh();
+    } catch {
+      toast.error("Could not sign out. Please try again.");
+    }
   }
 
   async function updateBookingStatus(bookingId: string, status: string) {
