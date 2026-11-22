@@ -74,6 +74,11 @@
 - `DEMO_ADMIN_EMAIL` identifies the demo Admin. That account cannot change user roles in the UI or through `/api/admin/users`.
 - Real Admin accounts retain the normal role-management controls.
 
+## Dashboard analytics
+
+- Admin and Owner dashboard overview cards and six-month summaries load from the authenticated `/api/analytics` proxy.
+- The Express endpoint calculates values from MongoDB. Admins see platform-wide counts, pending approvals, paid BDT revenue and monthly booking counts; Owners see only their own listing, completed rental and paid BDT earnings data.
+
 ## Commands
 
 - `npm run dev` - start Next.js on port 3000.

@@ -163,6 +163,20 @@ type PaymentSummary = {
   currency: string;
 };
 
+type DashboardAnalytics = {
+  role: "Admin" | "Owner";
+  totalUsers?: number;
+  totalEquipment?: number;
+  totalBookings?: number;
+  pendingApprovals?: number;
+  completedRentals: number;
+  totalRevenueBdt?: number;
+  totalListedEquipment?: number;
+  totalEarningsBdt?: number;
+  monthlyBookingStats?: Array<{ month: string; bookings: number }>;
+  monthlyEarnings?: Array<{ month: string; earningsBdt: number }>;
+};
+
 const BOOKING_BADGE: Record<string, string> = {
   confirmed: "bg-emerald-50 text-emerald-700",
   active: "bg-sky-50 text-sky-700",
@@ -219,6 +233,9 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingsLoaded, setBookingsLoaded] = useState(false);
   const [bookingsError, setBookingsError] = useState<string | null>(null);
+  const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
+  const [analyticsLoaded, setAnalyticsLoaded] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -256,6 +273,28 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
       })
       .finally(() => setBookingsLoaded(true));
   }, []);
+
+  useEffect(() => {
+    if (role !== "Admin" && role !== "Owner") {
+      setAnalyticsLoaded(true);
+      return;
+    }
+
+    fetch("/api/analytics")
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error ?? "Could not load dashboard analytics.");
+        return data as { analytics?: DashboardAnalytics };
+      })
+      .then((data) => {
+        setAnalytics(data.analytics ?? null);
+        setAnalyticsError(null);
+      })
+      .catch((error: unknown) => {
+        setAnalyticsError(error instanceof Error ? error.message : "Could not load dashboard analytics.");
+      })
+      .finally(() => setAnalyticsLoaded(true));
+  }, [role]);
 
   function selectTab(tab: DashboardTab) {
     setActiveTab(tab);
@@ -436,6 +475,9 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
                 bookingsLoaded={bookingsLoaded}
                 bookingsError={bookingsError}
                 savedCount={favorites.length}
+                analytics={analytics}
+                analyticsLoaded={analyticsLoaded}
+                analyticsError={analyticsError}
               />
             ) : null}
             {activeTab === "bookings" ? (
@@ -483,6 +525,9 @@ function Overview({
   bookingsLoaded,
   bookingsError,
   savedCount,
+  analytics,
+  analyticsLoaded,
+  analyticsError,
 }: {
   userName: string;
   role: string;
@@ -490,6 +535,9 @@ function Overview({
   bookingsLoaded: boolean;
   bookingsError: string | null;
   savedCount: number;
+  analytics: DashboardAnalytics | null;
+  analyticsLoaded: boolean;
+  analyticsError: string | null;
 }) {
   const active = bookings.filter((booking) => booking.status === "confirmed" || booking.status === "active").length;
   const completed = bookings.filter((booking) => booking.status === "completed").length;
@@ -507,15 +555,18 @@ function Overview({
   const stats =
     role === "Admin"
       ? [
-          { label: "Total bookings", value: bookingsLoaded ? String(bookings.length) : "—", note: "Across the marketplace" },
-          { label: "Active bookings", value: bookingsLoaded ? String(active) : "—", note: "Confirmed or running" },
-          { label: "Rental revenue", value: bookingsLoaded ? money(revenue) : "—", note: "Paid bookings" },
+          { label: "Total users", value: analyticsLoaded ? String(analytics?.totalUsers ?? 0) : "—", note: "Registered accounts" },
+          { label: "Total equipment", value: analyticsLoaded ? String(analytics?.totalEquipment ?? 0) : "—", note: "All marketplace listings" },
+          { label: "Total bookings", value: analyticsLoaded ? String(analytics?.totalBookings ?? 0) : "—", note: "Across the marketplace" },
+          { label: "Pending approvals", value: analyticsLoaded ? String(analytics?.pendingApprovals ?? 0) : "—", note: "Equipment awaiting review" },
+          { label: "Completed rentals", value: analyticsLoaded ? String(analytics?.completedRentals ?? 0) : "—", note: "All completed bookings" },
+          { label: "Total revenue", value: analyticsLoaded ? money(analytics?.totalRevenueBdt ?? 0) : "—", note: "Paid booking totals (BDT)" },
         ]
       : role === "Owner"
         ? [
-            { label: "Rental requests", value: bookingsLoaded ? String(bookings.length) : "—", note: "All incoming bookings" },
-            { label: "Active rentals", value: bookingsLoaded ? String(active) : "—", note: "Confirmed or running" },
-            { label: "Monthly earnings", value: bookingsLoaded ? money(revenue) : "—", note: "Completed payments" },
+            { label: "Listed equipment", value: analyticsLoaded ? String(analytics?.totalListedEquipment ?? 0) : "—", note: "Your listings" },
+            { label: "Completed rentals", value: analyticsLoaded ? String(analytics?.completedRentals ?? 0) : "—", note: "Your completed bookings" },
+            { label: "Total earnings", value: analyticsLoaded ? money(analytics?.totalEarningsBdt ?? 0) : "—", note: "Your paid booking totals (BDT)" },
           ]
         : [
             { label: "Active rentals", value: bookingsLoaded ? String(active) : "—", note: "Currently booked" },
@@ -545,11 +596,45 @@ function Overview({
         </Link>
       </div>
 
-      <div className="mt-8 grid gap-3 sm:grid-cols-3">
+      <div className={`mt-8 grid gap-3 ${role === "Admin" ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-3"}`}>
         {stats.map((stat) => (
           <StatCard key={stat.label} {...stat} />
         ))}
       </div>
+
+      {role !== "Customer" ? (
+        <section className="mt-6 rounded-2xl border border-ink/[0.08] bg-white p-5 sm:p-6" aria-labelledby="monthly-analytics-title">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 id="monthly-analytics-title" className="text-[15px] font-bold">
+                {role === "Admin" ? "Monthly booking statistics" : "Monthly earnings"}
+              </h2>
+              <p className="mt-1 text-[11px] text-ink/45">Last six months from saved marketplace records</p>
+            </div>
+            {analyticsError ? <p role="alert" className="text-[11px] text-rose-600">{analyticsError}</p> : null}
+          </div>
+          {!analyticsLoaded ? (
+            <div className="mt-5 h-24 animate-pulse rounded-xl bg-cream" />
+          ) : (
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              {(role === "Admin" ? analytics?.monthlyBookingStats ?? [] : analytics?.monthlyEarnings ?? []).map((item) => {
+                const month = item.month;
+                const value = "bookings" in item ? item.bookings : item.earningsBdt;
+                return (
+                  <div key={month} className="rounded-xl bg-cream/70 p-3">
+                    <p className="text-[10px] text-ink/45">{new Date(`${month}-01T00:00:00`).toLocaleDateString(undefined, { month: "short", year: "2-digit" })}</p>
+                    <p className="mt-2 text-[17px] font-bold">{"bookings" in item ? value : money(value)}</p>
+                    <p className="mt-1 text-[9px] text-ink/40">{"bookings" in item ? "bookings" : "earnings (BDT)"}</p>
+                  </div>
+                );
+              })}
+              {analytics && (analytics.monthlyBookingStats ?? analytics.monthlyEarnings ?? []).length === 0 ? (
+                <p className="col-span-full py-5 text-center text-[12px] text-ink/45">No monthly data yet.</p>
+              ) : null}
+            </div>
+          )}
+        </section>
+      ) : null}
 
       <section
         aria-labelledby="booking-chart-title"
