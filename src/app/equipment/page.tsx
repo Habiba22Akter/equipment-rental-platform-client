@@ -251,10 +251,10 @@ export default async function EquipmentListPage({ searchParams }: { searchParams
                 <button type="submit" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg bg-ink px-3 text-[10px] font-bold text-cream transition hover:bg-ink-soft">
                   Apply filters
                 </button>
-                <Link href="/equipment" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-ink/10 px-3 text-[10px] font-semibold text-ink/55 transition hover:bg-cream">
+                <button type="button" data-reset-filters className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-ink/10 px-3 text-[10px] font-semibold text-ink/55 transition hover:bg-cream">
                   <RotateCcw className="size-3" />
                   Reset
-                </Link>
+                </button>
               </div>
             </aside>
 
@@ -294,10 +294,10 @@ export default async function EquipmentListPage({ searchParams }: { searchParams
                         ? "Adjust the price range and apply the filters again."
                 : equipmentError || "Try changing your search or filters. Owner listings appear here after an admin approves them."}
                     </p>
-                    <Link href="/equipment" className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-lg bg-ink px-3.5 text-[10px] font-semibold text-cream">
+                    <button type="button" data-reset-filters className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-lg bg-ink px-3.5 text-[10px] font-semibold text-cream">
                       Clear filters
                       <ArrowRight className="size-3" />
-                    </Link>
+                    </button>
                   </div>
                 </div>
               ) : (
