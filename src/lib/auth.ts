@@ -16,19 +16,18 @@ if (!authSecret) {
   throw new Error("Missing BETTER_AUTH_SECRET. Add a long random secret to the environment.");
 }
 
-/**
- * Reuse the Mongo client across hot reloads in development so `next dev`
- * does not open a new connection pool on every recompile.
- */
+/** Reuse the Mongo connection across Next.js requests and hot reloads. */
 const globalForMongo = globalThis as typeof globalThis & {
   __gearGridMongoClient?: MongoClient;
 };
 
-const client = globalForMongo.__gearGridMongoClient ?? new MongoClient(dbUrl);
+const client =
+  globalForMongo.__gearGridMongoClient ?? new MongoClient(dbUrl);
 
-if (process.env.NODE_ENV !== "production") {
-  globalForMongo.__gearGridMongoClient = client;
-}
+// Vercel can reuse a warm serverless process between requests. Keep its
+// connection in globalThis in production too, so Better Auth never uses a
+// client whose topology was discarded when the route module was reloaded.
+globalForMongo.__gearGridMongoClient = client;
 
 export const db = client.db(process.env.DB_NAME ?? "equipment-rental-platform");
 
