@@ -12,6 +12,14 @@
 - MongoDB collections: `equipment`, `favorites`, `bookings`, `payments`, plus Better Auth collections.
 - Stripe Checkout for rental payments; shadcn/base-ui components for UI primitives.
 
+## Assignment and release status
+
+- The requested marketplace and Customer/Owner/Admin dashboard flows are implemented in the client and Express API.
+- The root layout supplies the global footer; root loading, error and not-found UI are present.
+- Do not claim production is deployed or verified until a live URL is added and route reloads, CORS, OAuth and Stripe webhook delivery have been checked.
+- Google OAuth is conditional on `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`; production must configure both and the matching callback URL.
+- Current committed-history counts are 41 client commits and 16 server commits. There may still be uncommitted work; check Git status before submission.
+
 ## Next.js 16 rules
 
 - This is Next.js 16: read the local docs in `node_modules/next/dist/docs/` before changing routing or cache behavior.

@@ -2,9 +2,9 @@
 
 A full-stack equipment rental marketplace where owners list their gear and customers browse, book and rent it for a specific period. GearGrid focuses on transparent rates, verified profiles and a booking flow that gets out of the way.
 
-> **Live URL:** Add the deployed Vercel URL here after the production deployment.
+> **Live URL:** Not deployed or verified yet. Add the production URL here after deployment.
 >
-> **Current milestone:** the marketplace, role dashboards, Stripe checkout/webhook flow and JWT-secured Express API are implemented. Only deployment URLs and provider credentials remain environment-specific.
+> **Current status:** the core marketplace, role dashboards, Better Auth, Stripe checkout/webhook flow and JWT-secured Express API are implemented. Production deployment, production environment variables, Google OAuth credentials and the live Stripe webhook still need deployment-time setup and verification.
 
 ## Purpose
 
@@ -66,7 +66,20 @@ Renting equipment is still often handled through phone calls, screenshots and un
 | `cn` | Class-name merging for Tailwind components. |
 | `lucide-react` | Icon set. |
 | `sonner` | Toast notifications. |
+| `framer-motion` | Home page section and card animations. |
+| `jose` | Verify JWTs with Better Auth JWKS in the Express API and session-cache verification in development. |
+| `stripe` | Create Checkout Sessions and handle verified payment webhooks. |
 | `eslint`, `eslint-config-next`, `typescript` | Linting and type safety. |
+
+## Assignment Readiness
+
+The source code includes the requested public marketplace, approved-equipment browsing with backend search/filter/sort, private equipment details, customer/owner/admin dashboards, favorites, profile editing, booking management, Stripe Checkout and webhook-backed payment records. The home page includes six-item featured equipment, categories, benefits, four sample reviews, additional sections and Framer Motion animations. Global loading, error and not-found pages are present, and the shared footer is rendered from the root layout.
+
+The committed Git history currently contains 41 client commits and 16 server commits, exceeding the requested 20 and 12. These are committed-history counts; commit any outstanding working-tree changes before submitting.
+
+Production readiness is not yet confirmed: this README has no deployed live URL, and a successful local build does not verify direct-route reloads, production CORS, OAuth, MongoDB access or Stripe webhook delivery. Configure deployment environment variables, Google OAuth callback, production CORS origin and a reachable Stripe webhook, then verify the deployed routes and payment flow.
+
+Google login is implemented but only becomes available when both Google OAuth credentials are configured. Four home-page testimonials are sample content; customer reviews submitted through the app are stored separately in MongoDB.
 
 ## Getting Started
 
