@@ -15,6 +15,7 @@ import { auth } from "@/lib/auth";
 import { getEquipmentCategoryLabel, type FeaturedEquipment } from "@/lib/equipment";
 import { serverFetch } from "@/lib/server-api";
 import { SiteHeader } from "@/components/site/site-header";
+import { EquipmentSearchForm } from "@/components/equipment/equipment-search-form";
 
 export const metadata: Metadata = {
   title: "All equipment",
@@ -67,7 +68,7 @@ function toEquipmentCard(value: EquipmentApiRecord): FeaturedEquipment | null {
   const weeklyRate = asAmount(value.weeklyRate) || dailyRate * 7;
   const monthlyRate = asAmount(value.monthlyRate) || dailyRate * 30;
   const rentalType = value.rentalType === "Weekly" || value.rentalType === "Monthly" ? value.rentalType : "Daily";
-  const quantityValue = value.availableQuantity ?? value.quantity;
+  const quantityValue = value.currentAvailableQuantity ?? value.availableQuantity ?? value.quantity;
   const availableQuantity = Number.isFinite(Number(quantityValue))
     ? Math.max(0, Number(quantityValue))
     : 1;
@@ -123,19 +124,17 @@ export default async function EquipmentListPage({ searchParams }: { searchParams
   if (availability !== "all") equipmentQuery.set("availability", availability);
   equipmentQuery.set("sort", sort);
 
-  const [session, categoriesResult, equipmentResult] = await Promise.all([
+  const [session, equipmentResult] = await Promise.all([
     auth.api.getSession({ headers: await headers() }),
-    requestEquipmentApi<string[]>("/api/equipments/categories"),
     invalidPriceRange
       ? Promise.resolve({ ok: true, status: 200, data: [] as EquipmentApiRecord[], error: undefined })
       : requestEquipmentApi<EquipmentApiRecord[]>(`/api/equipments?${equipmentQuery.toString()}`),
   ]);
-  const categories = categoriesResult.ok ? categoriesResult.data ?? [] : [];
   const equipment = equipmentResult.ok
     ? (equipmentResult.data ?? []).map(toEquipmentCard).filter((item): item is FeaturedEquipment => Boolean(item))
     : [];
   const equipmentError = equipmentResult.ok ? "" : equipmentResult.error ?? "Could not load equipment right now.";
-  const categoryOptions = [...new Set([...defaultCategories, ...categories])].sort((a, b) => a.localeCompare(b));
+  const categoryOptions = defaultCategories;
   const viewHref = (id: string) => (session?.user ? `/equipment/${id}` : "/signin");
 
   return (
@@ -165,7 +164,7 @@ export default async function EquipmentListPage({ searchParams }: { searchParams
       </section>
 
       <main className="mx-auto w-full max-w-[1180px] px-5 py-7 sm:px-7 sm:py-9 lg:px-10">
-        <form action="/equipment" method="get">
+        <EquipmentSearchForm>
           <div className="flex flex-col gap-3 sm:flex-row">
             <label className="flex h-12 flex-1 items-center gap-3 rounded-xl border border-ink/[0.08] bg-white px-4 shadow-[0_12px_35px_-30px_rgba(11,31,26,0.55)]">
               <Search className="size-4 shrink-0 text-ink/35" />
@@ -353,7 +352,7 @@ export default async function EquipmentListPage({ searchParams }: { searchParams
               )}
             </section>
           </div>
-        </form>
+        </EquipmentSearchForm>
       </main>
     </div>
   );
