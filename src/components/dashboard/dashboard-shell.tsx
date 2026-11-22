@@ -206,6 +206,7 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
   const [favoritesLoaded, setFavoritesLoaded] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingsLoaded, setBookingsLoaded] = useState(false);
+  const [bookingsError, setBookingsError] = useState<string | null>(null);
 
   const initials = getInitials(user.name);
   const role = normalizeRole(user.role);
@@ -222,9 +223,21 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
 
   useEffect(() => {
     fetch("/api/bookings")
-      .then((response) => response.ok ? response.json() : { bookings: [] })
-      .then((data) => setBookings(data.bookings ?? []))
-      .catch(() => setBookings([]))
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error ?? "Could not load rental bookings.");
+        }
+        return data;
+      })
+      .then((data) => {
+        setBookings(data.bookings ?? []);
+        setBookingsError(null);
+      })
+      .catch((error: unknown) => {
+        setBookings([]);
+        setBookingsError(error instanceof Error ? error.message : "Could not load rental bookings.");
+      })
       .finally(() => setBookingsLoaded(true));
   }, []);
 
@@ -384,7 +397,7 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25 }}
-            className="mx-auto max-w-[1120px] px-5 py-8 sm:px-8 lg:px-10 lg:py-12"
+            className="mx-auto w-full max-w-[1280px] px-5 py-8 sm:px-8 lg:px-10 lg:py-12"
           >
             {activeTab === "overview" ? (
               <Overview
@@ -392,6 +405,7 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
                 role={role}
                 bookings={bookings}
                 bookingsLoaded={bookingsLoaded}
+                bookingsError={bookingsError}
                 savedCount={favorites.length}
               />
             ) : null}
@@ -400,6 +414,7 @@ export function DashboardShell({ user, initialTab = "overview" }: DashboardShell
                 role={role}
                 bookings={bookings}
                 loaded={bookingsLoaded}
+                error={bookingsError}
                 onStatusChange={updateBookingStatus}
               />
             ) : null}
@@ -436,12 +451,14 @@ function Overview({
   role,
   bookings,
   bookingsLoaded,
+  bookingsError,
   savedCount,
 }: {
   userName: string;
   role: string;
   bookings: Booking[];
   bookingsLoaded: boolean;
+  bookingsError: string | null;
   savedCount: number;
 }) {
   const active = bookings.filter((booking) => booking.status === "confirmed" || booking.status === "active").length;
@@ -449,6 +466,13 @@ function Overview({
   const revenue = bookings
     .filter((booking) => booking.paymentStatus === "paid")
     .reduce((sum, booking) => sum + Number(booking.totalAmount ?? 0), 0);
+  const bookingStatuses = [
+    { label: "Pending", count: bookings.filter((booking) => booking.status === "pending").length, color: "bg-amber-400" },
+    { label: "Active", count: active, color: "bg-lime-strong" },
+    { label: "Completed", count: completed, color: "bg-sky-500" },
+    { label: "Cancelled", count: bookings.filter((booking) => booking.status === "cancelled").length, color: "bg-rose-400" },
+  ];
+  const maxStatusCount = Math.max(1, ...bookingStatuses.map((status) => status.count));
 
   const stats =
     role === "Admin"
@@ -497,6 +521,49 @@ function Overview({
         ))}
       </div>
 
+      <section
+        aria-labelledby="booking-chart-title"
+        className="mt-6 rounded-2xl border border-ink/[0.08] bg-white p-5 sm:p-6"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 id="booking-chart-title" className="text-[15px] font-bold">
+              Booking activity
+            </h2>
+            <p className="mt-1 text-[11px] text-ink/45">
+              Current rental status at a glance
+            </p>
+          </div>
+          <span className="rounded-full bg-cream px-3 py-1.5 text-[10px] font-semibold text-ink/55">
+            {bookingsLoaded ? `${bookings.length} total` : "Loading…"}
+          </span>
+        </div>
+        {!bookingsLoaded ? (
+          <div className="mt-6 h-36 animate-pulse rounded-xl bg-cream" />
+        ) : (
+          <div
+            role="img"
+            aria-label={`Booking status chart: ${bookingStatuses.map(({ label, count }) => `${label} ${count}`).join(", ")}`}
+            className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4"
+          >
+            {bookingStatuses.map(({ label, count, color }) => (
+              <div key={label} className="flex min-w-0 flex-col">
+                <div className="flex h-28 items-end rounded-xl bg-cream/70 px-3 pb-0">
+                  <div
+                    className={`w-full rounded-t-lg ${color} transition-[height] duration-500`}
+                    style={{ height: `${Math.max(8, (count / maxStatusCount) * 100)}%` }}
+                  />
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+                  <span className="truncate text-ink/55">{label}</span>
+                  <span className="font-bold text-ink">{count}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       <div className="mt-8 rounded-2xl border border-ink/[0.08] bg-white p-5 sm:p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -510,8 +577,12 @@ function Overview({
           </span>
         </div>
         <div className="mt-5 space-y-3">
-          {!bookingsLoaded ? (
+              {!bookingsLoaded ? (
             <div className="h-24 animate-pulse rounded-xl bg-cream" />
+              ) : bookingsError ? (
+                <p role="alert" className="rounded-xl bg-rose-50 p-4 text-[12px] text-rose-700">
+                  Rental data could not be loaded: {bookingsError}
+                </p>
           ) : bookings.length === 0 ? (
             <p className="rounded-xl border border-dashed border-ink/15 p-6 text-center text-[12px] text-ink/45">
               No bookings yet. Your reservations will appear here.
@@ -531,11 +602,13 @@ function Bookings({
   role,
   bookings,
   loaded,
+  error,
   onStatusChange,
 }: {
   role: string;
   bookings: Booking[];
   loaded: boolean;
+  error: string | null;
   onStatusChange: (bookingId: string, status: string) => void;
 }) {
   return (
@@ -555,6 +628,14 @@ function Bookings({
       <div className="mt-8">
         {!loaded ? (
           <div className="h-64 animate-pulse rounded-2xl bg-white" />
+        ) : error ? (
+          <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-800">
+            <p className="font-semibold">Rental bookings could not be loaded.</p>
+            <p className="mt-2">{error}</p>
+            <p className="mt-2 text-xs text-rose-700/80">
+              Check that the Express server is running and both apps use the same MongoDB database.
+            </p>
+          </div>
         ) : bookings.length === 0 ? (
           <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-ink/15 bg-white p-8 text-center">
             <div>
@@ -1140,7 +1221,7 @@ function OwnerEquipment({ user, initialOpen = false }: { user: DashboardUser; in
                   <option>Daily</option><option>Weekly</option><option>Monthly</option>
                 </select>
               </OwnerField>
-              <OwnerField label="Rental price" name="rentalPrice"><input required name="rentalPrice" type="number" min="0.01" step="0.01" placeholder="50" /></OwnerField>
+              <OwnerField label="Rental price (BDT)" name="rentalPrice"><input required name="rentalPrice" type="number" min="0.01" step="0.01" placeholder="500" /></OwnerField>
               <OwnerField label="Available quantity" name="availableQuantity"><input required name="availableQuantity" type="number" min="1" step="1" defaultValue="1" /></OwnerField>
               <div className="sm:col-span-2"><OwnerField label="Rental terms and conditions" name="terms"><textarea required name="terms" rows={3} placeholder="Pickup, damage policy, late return..." /></OwnerField></div>
               <div className="sm:col-span-2"><OwnerField label="Equipment image (ImgBB upload)" name="image"><input required name="image" type="file" accept="image/*" /></OwnerField><p className="mt-1 text-[10px] text-ink/40">Upload one image up to 5 MB. The image is hosted on ImgBB.</p></div>
@@ -1190,10 +1271,10 @@ function OwnerEquipment({ user, initialOpen = false }: { user: DashboardUser; in
                   <option>Daily</option><option>Weekly</option><option>Monthly</option>
                 </select>
               </OwnerField>
-              <OwnerField label="Daily price" name="dailyRate"><input required name="dailyRate" type="number" min="1" step="0.01" defaultValue={Number(editing.dailyRate ?? 0)} /></OwnerField>
+              <OwnerField label="Daily price (BDT)" name="dailyRate"><input required name="dailyRate" type="number" min="1" step="0.01" defaultValue={Number(editing.dailyRate ?? 0)} /></OwnerField>
               <OwnerField label="Available quantity" name="availableQuantity"><input required name="availableQuantity" type="number" min="1" step="1" defaultValue={Number(editing.availableQuantity ?? editing.quantity ?? 1)} /></OwnerField>
-              <OwnerField label="Weekly price (optional)" name="weeklyRate"><input name="weeklyRate" type="number" min="1" step="0.01" defaultValue={Number(editing.weeklyRate ?? 0) || ""} /></OwnerField>
-              <OwnerField label="Monthly price (optional)" name="monthlyRate"><input name="monthlyRate" type="number" min="1" step="0.01" defaultValue={Number(editing.monthlyRate ?? 0) || ""} /></OwnerField>
+              <OwnerField label="Weekly price (BDT, optional)" name="weeklyRate"><input name="weeklyRate" type="number" min="1" step="0.01" defaultValue={Number(editing.weeklyRate ?? 0) || ""} /></OwnerField>
+              <OwnerField label="Monthly price (BDT, optional)" name="monthlyRate"><input name="monthlyRate" type="number" min="1" step="0.01" defaultValue={Number(editing.monthlyRate ?? 0) || ""} /></OwnerField>
               <div className="sm:col-span-2"><OwnerField label="Rental terms" name="terms"><textarea name="terms" rows={2} defaultValue={editing.terms ?? ""} /></OwnerField></div>
               <div className="sm:col-span-2"><OwnerField label="Image URL" name="imageUrl"><input name="imageUrl" type="url" defaultValue={editing.imageUrl ?? editing.image ?? ""} /></OwnerField></div>
               <button disabled={savingEdit} type="submit" className="sm:col-span-2 h-11 rounded-xl bg-ink text-[12px] font-semibold text-cream disabled:opacity-50">
@@ -1445,10 +1526,10 @@ function AdminEquipment() {
               <OwnerField label="Equipment condition" name="condition"><select name="condition" defaultValue={editing.condition ?? 'Good'}><option>New</option><option>Like New</option><option>Good</option><option>Fair</option></select></OwnerField>
               <OwnerField label="Location" name="location"><input required name="location" defaultValue={editing.location} /></OwnerField>
               <OwnerField label="Rental type" name="rentalType"><select name="rentalType" defaultValue={editing.rentalType ?? 'Daily'}><option>Daily</option><option>Weekly</option><option>Monthly</option></select></OwnerField>
-              <OwnerField label="Daily price" name="dailyRate"><input required name="dailyRate" type="number" min="0.01" step="0.01" defaultValue={editing.dailyRate ?? 0} /></OwnerField>
+              <OwnerField label="Daily price (BDT)" name="dailyRate"><input required name="dailyRate" type="number" min="0.01" step="0.01" defaultValue={editing.dailyRate ?? 0} /></OwnerField>
               <OwnerField label="Available quantity" name="availableQuantity"><input required name="availableQuantity" type="number" min="1" step="1" defaultValue={editing.availableQuantity ?? editing.quantity ?? 1} /></OwnerField>
-              <OwnerField label="Weekly price (optional)" name="weeklyRate"><input name="weeklyRate" type="number" min="0.01" step="0.01" defaultValue={editing.weeklyRate ?? ''} /></OwnerField>
-              <OwnerField label="Monthly price (optional)" name="monthlyRate"><input name="monthlyRate" type="number" min="0.01" step="0.01" defaultValue={editing.monthlyRate ?? ''} /></OwnerField>
+              <OwnerField label="Weekly price (BDT, optional)" name="weeklyRate"><input name="weeklyRate" type="number" min="0.01" step="0.01" defaultValue={editing.weeklyRate ?? ''} /></OwnerField>
+              <OwnerField label="Monthly price (BDT, optional)" name="monthlyRate"><input name="monthlyRate" type="number" min="0.01" step="0.01" defaultValue={editing.monthlyRate ?? ''} /></OwnerField>
               <div className="sm:col-span-2"><OwnerField label="Rental terms and conditions" name="terms"><textarea name="terms" rows={3} defaultValue={editing.terms ?? ''} /></OwnerField></div>
               <div className="sm:col-span-2"><OwnerField label="Image URL" name="imageUrl"><input name="imageUrl" type="url" defaultValue={editing.imageUrl ?? editing.image ?? ''} /></OwnerField></div>
               <button disabled={savingEdit} type="submit" className="sm:col-span-2 h-11 rounded-xl bg-ink text-[12px] font-semibold text-cream disabled:opacity-50">{savingEdit ? 'Saving changes...' : 'Save changes'}</button>
@@ -1614,7 +1695,7 @@ function Payments({ role }: { role: string }) {
         />
         <StatCard
           label="Total volume"
-          value={loaded ? money(summary?.totalAmount ?? 0) : "—"}
+          value={loaded ? money(summary?.totalAmount ?? 0, summary?.currency ?? "USD") : "—"}
           note="Gross rental value"
         />
         <StatCard
@@ -1668,7 +1749,7 @@ function Payments({ role }: { role: string }) {
                 <span className={`rounded-full px-2.5 py-1 text-[9px] font-bold capitalize ${statusStyles[payment.status ?? "paid"] ?? "bg-ink/[0.06] text-ink/60"}`}>
                   {payment.status ?? "paid"}
                 </span>
-                <p className="text-[15px] font-bold">{money(payment.amount)}</p>
+                <p className="text-[15px] font-bold">{money(payment.amount, payment.currency ?? "USD")}</p>
               </div>
             </div>
           ))}
@@ -2144,8 +2225,12 @@ function ProfileField({ label, value }: { label: string; value: string }) {
   );
 }
 
-function money(value: number) {
-  return `$${Number(value || 0).toFixed(2)}`;
+function money(value: number, currency = "BDT") {
+  return new Intl.NumberFormat("en-BD", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
 }
 
 function formatDate(value: string) {

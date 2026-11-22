@@ -45,9 +45,10 @@
 
 - `/api/favorites` stores favorite equipment for the signed-in customer.
 - `/api/customer/favorites` returns hydrated favorite equipment for the dashboard.
-- `/api/checkout` validates dates and quantity, calculates the rental total, and creates Stripe Checkout.
-- `/api/payments/success` and `/api/stripe/webhook` confirm payment and create `bookings` and `payments` records exactly once.
-- Never trust a browser-calculated total for checkout; the server recalculates it from MongoDB equipment data.
+- `/api/bookings` authenticates the customer and forwards booking details to Express; Express recalculates the BDT total and creates the Stripe Checkout Session.
+- Stripe calls the Express `/api/webhooks/stripe` endpoint. The webhook updates booking/payment records; the frontend success page only thanks the customer.
+- Equipment rates and booking totals are shown in BDT; Stripe charges the converted USD amount.
+- Never trust a browser-calculated total for checkout; Express recalculates it from MongoDB equipment data.
 
 ## Commands
 

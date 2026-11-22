@@ -223,11 +223,11 @@ export default async function EquipmentListPage({ searchParams }: { searchParams
               </div>
 
               <fieldset className="mt-5 border-t border-ink/[0.08] pt-4">
-                <legend className="text-[9px] font-bold tracking-[0.13em] text-ink/45 uppercase">Rental price range (USD)</legend>
+                <legend className="text-[9px] font-bold tracking-[0.13em] text-ink/45 uppercase">Rental price range (BDT)</legend>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <label className="text-[9px] font-medium text-ink/40" htmlFor="minPrice">
                     Min
-                    <input id="minPrice" name="minPrice" type="number" min="0" step="1" defaultValue={minPrice ?? ""} placeholder="$0" className="mt-1 h-9 w-full rounded-lg border border-ink/10 px-2.5 text-[10.5px] text-ink outline-none focus:border-ink/35" />
+                    <input id="minPrice" name="minPrice" type="number" min="0" step="1" defaultValue={minPrice ?? ""} placeholder="৳0" className="mt-1 h-9 w-full rounded-lg border border-ink/10 px-2.5 text-[10.5px] text-ink outline-none focus:border-ink/35" />
                   </label>
                   <label className="text-[9px] font-medium text-ink/40" htmlFor="maxPrice">
                     Max
@@ -360,5 +360,5 @@ export default async function EquipmentListPage({ searchParams }: { searchParams
 }
 
 function formatPrice(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(value);
+  return new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 2 }).format(value);
 }

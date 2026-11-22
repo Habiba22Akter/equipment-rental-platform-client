@@ -120,7 +120,7 @@ export function EquipmentDetails({ equipment, reviews, role }: EquipmentDetailsP
     const form = new FormData(event.currentTarget);
 
     try {
-      const response = await fetch("/api/checkout", {
+      const response = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -414,6 +414,9 @@ export function EquipmentDetails({ equipment, reviews, role }: EquipmentDetailsP
                   </div>
                   <p className="pb-1 text-[9px] text-ink/40">{rentalUnits || 0} {equipment.rentalType.toLowerCase()} unit{rentalUnits === 1 ? "" : "s"} × {formatPrice(rentalRate)}</p>
                 </div>
+                <p className="mt-2 text-[10px] text-ink/40">
+                  Stripe Checkout converts the BDT total to USD before payment.
+                </p>
               </div>
 
               <button disabled={isSubmitting || !total || !available} type="submit" className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 text-[12px] font-bold text-cream transition hover:bg-ink-soft disabled:cursor-not-allowed disabled:opacity-45">
@@ -463,7 +466,7 @@ function Stars({ rating }: { rating: number }) {
 }
 
 function formatPrice(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(value);
+  return new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 2 }).format(value);
 }
 
 function todayLocal() {

@@ -245,7 +245,7 @@ export default async function HomePage() {
                           </h3>
                         </div>
                         <p className="shrink-0 text-[14px] font-bold">
-                          ${equipment.dailyRate}
+                          ৳{equipment.dailyRate}
                           <span className="text-[10px] font-normal text-ink/40">/day</span>
                         </p>
                       </div>
