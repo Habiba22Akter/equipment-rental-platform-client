@@ -2,9 +2,9 @@
 
 A full-stack equipment rental marketplace where owners list their gear and customers browse, book and rent it for a specific period. GearGrid focuses on transparent rates, verified profiles and a booking flow that gets out of the way.
 
-> **Live URL:** _Add the deployed Vercel URL here after the first production deployment._
+> **Live URL:** Add the deployed Vercel URL here after the production deployment.
 >
-> **Current milestone:** authentication (email/password + Google + GitHub) is complete and connected to MongoDB. Equipment, booking, payment and dashboard pages are the next milestones.
+> **Current milestone:** the marketplace, role dashboards, Stripe checkout/webhook flow and JWT-secured Express API are implemented. Only deployment URLs and provider credentials remain environment-specific.
 
 ## Purpose
 
@@ -26,17 +26,20 @@ Renting equipment is still often handled through phone calls, screenshots and un
 - Toast feedback for successful login/registration, validation errors and provider failures.
 - Profile photo support through a direct image URL or an ImgBB upload (API key stays server-side).
 - Session persistence across page reloads with Better Auth's MongoDB adapter.
+- JWT issuance through the Better Auth JWT plugin; the 15-minute token carries the verified user ID and role.
+- The JWT is retrieved separately from `/api/auth/token`; `better-auth.session_token` remains Better Auth's session cookie and is not the JWT.
+- A 7-day `better-auth.session_data` cache cookie is enabled with the JWT strategy. `sessionCookieCache: true` signs this cached session with the JWT plugin's JWKS keys; the regular `session_token` remains in place.
+- Express API verification through Better Auth JWKS public keys. Protected routes use verified `req.user` data, not spoofable identity headers.
 - Responsive, accessible UI with keyboard focus states, visible labels and reduced-motion support.
 - Environment variables for every secret and deployment-specific URL.
 
-### Planned for the next milestones
+### Marketplace flows
 
-- Equipment listing CRUD with images, categories and availability.
-- Search and filtering by category, location, date and price.
-- Booking flow with date validation and owner approval.
-- Secure online payment and payout records.
-- Customer, owner and admin dashboards with role-protected routes.
-- Reviews and ratings after a completed rental.
+- Equipment listing CRUD, category/location search and rental availability checks.
+- Customer bookings with date validation, pending reservations and owner/administrative status updates.
+- Stripe Checkout, raw-body webhook verification, BDT-to-USD conversion and saved payment records.
+- Customer, owner and admin dashboards with role-protected Next.js routes and Express authorization.
+- Reviews and ratings for completed rentals.
 
 ## Tech Stack
 
@@ -134,6 +137,8 @@ npm run start
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | No | Server | Enables Google login when both are set. |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | No | Server | Enables GitHub login when both are set. |
 | `IMGBB_API_KEY` | No | Server | Enables profile-photo uploads. Direct image URLs work without it. |
+| `EQUIPMENT_API_URL` | Yes | Server | Express API origin. |
+| `EQUIPMENT_API_KEY` | No | Server | Shared internal key that must match the Express `INTERNAL_API_KEY`. |
 
 The repository ignores `.env*` files; only `.env.example` is committed.
 
@@ -198,6 +203,8 @@ src/
 3. The session is restored on every reload through `/api/auth/get-session`, so authenticated users are not sent back to the login page.
 4. The header reads the session with `useSession()` and shows the user's name, avatar initials and role.
 5. Role changes are blocked at the public `update-user` endpoint; only server-side code can promote a user to `Admin`.
+6. When Next.js calls Express, it gets a short-lived JWT from the active Better Auth session and sends it in `Authorization: Bearer <jwt>`.
+7. Express validates the JWT signature and claims through Better Auth's JWKS endpoint, then sets the verified user ID and role as `req.user`.
 
 ## Deployment (Vercel)
 
@@ -237,6 +244,7 @@ src/
 - Passwords are hashed by Better Auth; the app never stores plain text.
 - Role escalation through `update-user` is blocked.
 - Authentication cookies are HTTP-only and signed by Better Auth.
+- Express authorization uses a verified JWT and the user's role/ID claims. Express does not accept `x-user-id` or `x-user-role` as authorization.
 
 ## Author
 

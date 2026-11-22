@@ -1,9 +1,13 @@
+import { headers as nextHeaders } from "next/headers";
+import { auth } from "@/lib/auth";
+
 const baseUrl = (process.env.EQUIPMENT_API_URL ?? "http://localhost:5001").replace(/\/$/, "");
 
 type ServerFetchOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   user?: { id?: string; role?: string | null };
+  jwtToken?: string;
   cache?: RequestCache;
 };
 
@@ -24,11 +28,25 @@ export async function serverFetch<T>(path: string, options: ServerFetchOptions =
     headers.set("x-api-key", internalKey);
   }
 
-  if (options.user?.id) {
-    headers.set("x-user-id", options.user.id);
+  if (options.jwtToken) {
+    headers.set("Authorization", `Bearer ${options.jwtToken}`);
+  } else {
+    const requestHeaders = await nextHeaders();
+    const session = await auth.api.getSession({ headers: requestHeaders });
+    if (!session?.user) {
+      if (options.user) {
+        throw new Error("Cannot forward user identity without an authenticated session.");
+      }
+    } else {
+      const tokenResponse = await auth.api.getToken({ headers: requestHeaders });
+      if (tokenResponse?.token) {
+        headers.set("Authorization", `Bearer ${tokenResponse.token}`);
+      }
+    }
   }
-  if (options.user?.role) {
-    headers.set("x-user-role", options.user.role);
+
+  if (!headers.has("Authorization") && options.user?.id) {
+    throw new Error("Cannot forward user identity without a verified JWT.");
   }
 
   const response = await fetch(`${baseUrl}${path}`, {

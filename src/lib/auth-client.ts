@@ -1,5 +1,5 @@
 import { createAuthClient } from "better-auth/react";
-import { inferAdditionalFields } from "better-auth/client/plugins";
+import { inferAdditionalFields, jwtClient } from "better-auth/client/plugins";
 import type { auth } from "@/lib/auth";
 
 /**
@@ -8,7 +8,18 @@ import type { auth } from "@/lib/auth";
  */
 export const authClient = createAuthClient({
   baseURL: process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, ""),
-  plugins: [inferAdditionalFields<typeof auth>()],
+  plugins: [
+    inferAdditionalFields<typeof auth>(),
+    jwtClient(),
+  ],
 });
 
-export const { signIn, signUp, signOut, useSession } = authClient;
+export const { signIn, signUp, signOut, useSession, getSession } = authClient;
+
+export async function getJwt() {
+  const { data, error } = await authClient.token();
+  if (error || !data?.token) {
+    throw new Error(error?.message ?? "Could not create JWT.");
+  }
+  return data.token;
+}

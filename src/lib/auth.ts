@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { mongodbAdapter } from "@better-auth/mongo-adapter";
 import { MongoClient } from "mongodb";
+import { jwt } from "better-auth/plugins";
 import { toSignupRole } from "@/lib/roles";
 
 const dbUrl = process.env.DB_URL;
@@ -66,6 +67,30 @@ export const auth = betterAuth({
   secret: authSecret,
   database: mongodbAdapter(db, { client }),
   trustedOrigins: trustedOrigins.length > 0 ? trustedOrigins : undefined,
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 7 * 24 * 60 * 60,
+      strategy: "jwt",
+    },
+  },
+  plugins: [
+    jwt({
+      // Sign the session_data cookie with the JWT plugin's JWKS keys as well.
+      sessionCookieCache: true,
+      jwt: {
+        issuer: process.env.BETTER_AUTH_URL || undefined,
+        audience: process.env.BETTER_AUTH_URL || undefined,
+        expirationTime: "15m",
+        definePayload: async (session) => ({
+          id: session.user.id,
+          name: session.user.name,
+          email: session.user.email,
+          role: session.user.role ?? "Customer",
+        }),
+      },
+    }),
+  ],
 
   emailAndPassword: {
     enabled: true,

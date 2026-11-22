@@ -25,16 +25,24 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const requestHeaders = await headers();
+  const session = await auth.api.getSession({ headers: requestHeaders });
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (session.user.role !== "Owner") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Get the Better Auth JWT plugin token and forward it to Express as a Bearer token.
+  const tokenResponse = await auth.api.getToken({ headers: requestHeaders });
+  if (!tokenResponse?.token) {
+    return NextResponse.json({ error: "Could not retrieve the access token." }, { status: 401 });
   }
 
   const body = await request.json();
   const result = await serverFetch("/api/equipments", {
     method: "POST",
     user: { id: session.user.id, role: session.user.role },
+    jwtToken: tokenResponse.token,
     body: {
       ...body,
       ownerId: session.user.id,
