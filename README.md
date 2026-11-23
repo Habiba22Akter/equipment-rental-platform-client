@@ -2,9 +2,9 @@
 
 A full-stack equipment rental marketplace where owners list their gear and customers browse, book and rent it for a specific period. GearGrid focuses on transparent rates, verified profiles and a booking flow that gets out of the way.
 
-> **Live URL:** Not deployed or verified yet. Add the production URL here after deployment.
+> **Live URL:** https://equipment-rental-platform-client-six.vercel.app
 >
-> **Current status:** the core marketplace, role dashboards, Better Auth, Stripe checkout/webhook flow and JWT-secured Express API are implemented. Production deployment, production environment variables, Google OAuth credentials and the live Stripe webhook still need deployment-time setup and verification.
+> **Current status:** the client and Express API are deployed on Vercel. The deployed home page and public API checks return HTTP 200. Google/GitHub OAuth initiation returns the deployed callback URLs. A Stripe test-mode webhook endpoint is configured and its signing secret is stored in the server's Vercel Production environment; verify a real test Checkout delivery before relying on payment confirmation. A success redirect alone does not confirm payment.
 
 ## Purpose
 
@@ -19,7 +19,7 @@ Renting equipment is still often handled through phone calls, screenshots and un
 ### Implemented now
 
 - Email and password registration and login with Better Auth.
-- Google and GitHub social login (provider code is ready; add your client IDs and secrets to enable).
+- Google and GitHub social login (provider credentials are configured; provider-console callback URLs must match the deployed callback paths below).
 - Password policy: at least 6 characters, one uppercase letter and one lowercase letter — validated in the form **and** on the server.
 - Role-based user model: `Customer`, `Owner`, `Admin`. New email and social accounts default to `Customer`; the sign-up form can create a `Customer` or `Owner` account.
 - Admin role can never be self-assigned through the public API. Role updates are stripped from `update-user`.
@@ -73,16 +73,6 @@ Renting equipment is still often handled through phone calls, screenshots and un
 | `jose` | Verify JWTs with Better Auth JWKS in the Express API and session-cache verification in development. |
 | `stripe` | Create Checkout Sessions and handle verified payment webhooks. |
 | `eslint`, `eslint-config-next`, `typescript` | Linting and type safety. |
-
-## Assignment Readiness
-
-The source code includes the requested public marketplace, approved-equipment browsing with backend search/filter/sort, private equipment details, customer/owner/admin dashboards, favorites, profile editing, booking management, Stripe Checkout and webhook-backed payment records. The home page includes six-item featured equipment, categories, benefits, four sample reviews, additional sections and Framer Motion animations. Global loading, error and not-found pages are present, and the shared footer is rendered from the root layout.
-
-The committed Git history currently contains 41 client commits and 16 server commits, exceeding the requested 20 and 12. These are committed-history counts; commit any outstanding working-tree changes before submitting.
-
-Production readiness is not yet confirmed: this README has no deployed live URL, and a successful local build does not verify direct-route reloads, production CORS, OAuth, MongoDB access or Stripe webhook delivery. Configure deployment environment variables, Google OAuth callback, production CORS origin and a reachable Stripe webhook, then verify the deployed routes and payment flow.
-
-Google login is implemented but only becomes available when both Google OAuth credentials are configured. Four home-page testimonials are sample content; customer reviews submitted through the app are stored separately in MongoDB.
 
 ## Getting Started
 
@@ -166,7 +156,8 @@ The repository ignores `.env*` files; only `.env.example` is committed.
 2. Create an **OAuth client ID** of type **Web application**.
 3. Add an authorised redirect URI:
    - Local: `http://localhost:3000/api/auth/callback/google`
-   - Production: `https://your-live-domain.com/api/auth/callback/google`
+   - Production: `https://equipment-rental-platform-client-six.vercel.app/api/auth/callback/google`
+   - Add the production origin `https://equipment-rental-platform-client-six.vercel.app` to **Authorized JavaScript origins** as well.
 4. Put the client ID and secret in `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 
 ### GitHub
@@ -174,10 +165,18 @@ The repository ignores `.env*` files; only `.env.example` is committed.
 1. Open **GitHub → Settings → Developer settings → OAuth Apps → New OAuth App**.
 2. Set the callback URL:
    - Local: `http://localhost:3000/api/auth/callback/github`
-   - Production: `https://your-live-domain.com/api/auth/callback/github`
+   - Production: `https://equipment-rental-platform-client-six.vercel.app/api/auth/callback/github`
 3. Put the client ID and secret in `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`.
 
 Providers are only registered when both values are present, so the app still boots without them. New social accounts receive the `Customer` role by default.
+
+Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in the client Vercel project's **Production** environment, along with `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` set to the production client origin. Redeploy after changing environment variables. OAuth callback URLs must match exactly, including protocol, host and path.
+
+## Production Stripe Webhook
+
+The Stripe **test-mode** endpoint is configured at `https://equipment-rental-platform-server-nine.vercel.app/api/webhooks/stripe` for `checkout.session.completed` and `checkout.session.expired`. Its signing secret is stored in the server Vercel project's Production `STRIPE_WEBHOOK_SECRET`, and the server has been redeployed. Keep `STRIPE_SECRET_KEY` in the same Stripe test mode. If switching to live payments, create a separate live-mode endpoint with the same URL/events, put its signing secret in Vercel, and redeploy.
+
+Send a test event or complete a test Checkout payment and confirm Stripe shows a successful delivery (HTTP 200). Then check MongoDB: the booking should be `paymentStatus: "paid"` and a matching record should exist in `payments`. The success page only reports the booking state; the signed webhook is what updates the database. Local `stripe listen` is separate and does not configure this production endpoint.
 
 ## MongoDB Setup
 
@@ -261,7 +260,3 @@ src/
 - Role escalation through `update-user` is blocked.
 - Authentication cookies are HTTP-only and signed by Better Auth.
 - Express authorization uses a verified JWT and the user's role/ID claims. Express does not accept `x-user-id` or `x-user-role` as authorization.
-
-## Author
-
-Built as part of the **Equipment Rental Platform** assignment.

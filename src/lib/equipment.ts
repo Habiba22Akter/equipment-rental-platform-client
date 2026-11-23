@@ -78,9 +78,8 @@ function getMongoClient() {
   const client =
     globalForMongo.__gearGridEquipmentMongoClient ?? new MongoClient(dbUrl);
 
-  if (process.env.NODE_ENV !== "production") {
-    globalForMongo.__gearGridEquipmentMongoClient = client;
-  }
+  // Reuse the connection in Vercel's warm serverless instances too.
+  globalForMongo.__gearGridEquipmentMongoClient = client;
 
   return client;
 }

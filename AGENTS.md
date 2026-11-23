@@ -16,9 +16,11 @@
 
 - The requested marketplace and Customer/Owner/Admin dashboard flows are implemented in the client and Express API.
 - The root layout supplies the global footer; root loading, error and not-found UI are present.
-- Do not claim production is deployed or verified until a live URL is added and route reloads, CORS, OAuth and Stripe webhook delivery have been checked.
-- Google OAuth is conditional on `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`; production must configure both and the matching callback URL.
-- Current committed-history counts are 41 client commits and 16 server commits. There may still be uncommitted work; check Git status before submission.
+- Production client URL: `https://equipment-rental-platform-client-six.vercel.app`; production Express API: `https://equipment-rental-platform-server-nine.vercel.app`.
+- Home rendering must not fail just because session lookup or optional featured-equipment data is temporarily unavailable; render the page and log the failed lookup on the server.
+- Google and GitHub OAuth initiation was checked on the deployed client; callbacks returned are `https://equipment-rental-platform-client-six.vercel.app/api/auth/callback/google` and `https://equipment-rental-platform-client-six.vercel.app/api/auth/callback/github`. The matching provider-console callback URLs are still required; Google also needs `https://equipment-rental-platform-client-six.vercel.app` as an Authorized JavaScript origin.
+- The deployed Stripe test-mode endpoint is `https://equipment-rental-platform-server-nine.vercel.app/api/webhooks/stripe` with `checkout.session.completed` and `checkout.session.expired`; its signing secret was synced to server Vercel Production and the server redeployed. Verify an actual test checkout delivery and MongoDB records. Never commit provider secrets.
+- Production client home page returned HTTP 200 after deployment. Home session/featured-listing reads must keep graceful fallbacks so temporary DB errors do not take down `/`.
 
 ## Next.js 16 rules
 

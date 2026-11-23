@@ -111,8 +111,16 @@ const ownerBenefits = [
 
 export default async function HomePage() {
   const [session, featuredEquipment] = await Promise.all([
-    auth.api.getSession({ headers: await headers() }),
-    getFeaturedEquipment(),
+    auth.api
+      .getSession({ headers: await headers() })
+      .catch((error) => {
+        console.error("Home page session lookup failed:", error);
+        return null;
+      }),
+    getFeaturedEquipment().catch((error) => {
+      console.error("Home page featured equipment lookup failed:", error);
+      return [];
+    }),
   ]);
   const isLoggedIn = Boolean(session?.user);
 
